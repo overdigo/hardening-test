@@ -352,18 +352,183 @@ test_invalid_host() {
 # URI MALICIOSA (10 testes)
 #==============================================================================
 test_malicious_uri() {
-    print_section "🔗 TESTES DE URI MALICIOSA"
+    print_section "🔗 TESTES DE URI MALICIOSA - WORDPRESS (50 testes)"
     
+    print_subsection "Arquivos de Configuração WordPress"
+    test_curl "WP: wp-config.php" "block" -A "$UA" -Lk "${URL}/wp-config.php"
+    test_curl "WP: wp-config.php.bak" "block" -A "$UA" -Lk "${URL}/wp-config.php.bak"
+    test_curl "WP: wp-config.php.old" "block" -A "$UA" -Lk "${URL}/wp-config.php.old"
+    test_curl "WP: wp-config.php.save" "block" -A "$UA" -Lk "${URL}/wp-config.php.save"
+    test_curl "WP: wp-config.php.swp" "block" -A "$UA" -Lk "${URL}/wp-config.php.swp"
+    test_curl "WP: wp-config.php~" "block" -A "$UA" -Lk "${URL}/wp-config.php~"
+    test_curl "WP: wp-config.txt" "block" -A "$UA" -Lk "${URL}/wp-config.txt"
+    test_curl "WP: wp-config-sample.php" "block" -A "$UA" -Lk "${URL}/wp-config-sample.php"
+    
+    print_subsection "Instalação e Debug WordPress"
+    test_curl "WP: wp-admin/install.php" "block" -A "$UA" -Lk "${URL}/wp-admin/install.php"
+    test_curl "WP: wp-admin/setup-config.php" "block" -A "$UA" -Lk "${URL}/wp-admin/setup-config.php"
+    test_curl "WP: wp-admin/upgrade.php" "block" -A "$UA" -Lk "${URL}/wp-admin/upgrade.php"
+    test_curl "WP: wp-includes/version.php" "block" -A "$UA" -Lk "${URL}/wp-includes/version.php"
+    test_curl "WP: debug.log" "block" -A "$UA" -Lk "${URL}/wp-content/debug.log"
+    test_curl "WP: error_log" "block" -A "$UA" -Lk "${URL}/error_log"
+    test_curl "WP: php_errorlog" "block" -A "$UA" -Lk "${URL}/php_errorlog"
+    
+    print_subsection "XMLRPC e REST API Attacks"
+    test_curl "WP: xmlrpc.php (POST)" "block" -A "$UA" -Lk -X POST "${URL}/xmlrpc.php"
+    test_curl "WP: xmlrpc.php (GET)" "block" -A "$UA" -Lk "${URL}/xmlrpc.php"
+    test_curl "WP: wp-json/wp/v2/users" "block" -A "$UA" -Lk "${URL}/wp-json/wp/v2/users"
+    test_curl "WP: ?author=1 (enum)" "block" -A "$UA" -Lk "${URL}/?author=1"
+    test_curl "WP: ?rest_route=/wp/v2/users" "block" -A "$UA" -Lk "${URL}/?rest_route=/wp/v2/users"
+    
+    print_subsection "Plugins Vulneráveis Conhecidos"
+    test_curl "WP: revslider upload" "block" -A "$UA" -Lk "${URL}/wp-admin/admin-ajax.php?action=revslider_show_image"
+    test_curl "WP: timthumb.php" "block" -A "$UA" -Lk "${URL}/wp-content/themes/starter/timthumb.php"
+    test_curl "WP: uploadify.php" "block" -A "$UA" -Lk "${URL}/wp-content/plugins/uploadify/uploadify.php"
+    test_curl "WP: wp-file-manager" "block" -A "$UA" -Lk "${URL}/wp-content/plugins/wp-file-manager/lib/php/connector.minimal.php"
+    test_curl "WP: duplicator installer" "block" -A "$UA" -Lk "${URL}/dup-installer/main.installer.php"
+    test_curl "WP: backup-db" "block" -A "$UA" -Lk "${URL}/wp-content/backup-db/"
+    test_curl "WP: backwpup" "block" -A "$UA" -Lk "${URL}/wp-content/plugins/backwpup/tmp/"
+    
+    print_subsection "Uploads e Shells"
+    test_curl "WP: uploads listagem" "block" -A "$UA" -Lk "${URL}/wp-content/uploads/"
+    test_curl "WP: uploads PHP" "block" -A "$UA" -Lk "${URL}/wp-content/uploads/shell.php"
+    test_curl "WP: uploads backdoor" "block" -A "$UA" -Lk "${URL}/wp-content/uploads/2024/01/shell.php"
+    test_curl "WP: uploads .htaccess" "block" -A "$UA" -Lk "${URL}/wp-content/uploads/.htaccess"
+    test_curl "WP: themes PHP exec" "block" -A "$UA" -Lk "${URL}/wp-content/themes/theme/cmd.php"
+    
+    print_subsection "Arquivos Sensíveis Gerais"
     test_curl "URI: .htaccess" "block" -A "$UA" -Lk "${URL}/.htaccess"
+    test_curl "URI: .htpasswd" "block" -A "$UA" -Lk "${URL}/.htpasswd"
     test_curl "URI: .env" "block" -A "$UA" -Lk "${URL}/.env"
+    test_curl "URI: .env.local" "block" -A "$UA" -Lk "${URL}/.env.local"
     test_curl "URI: .git/config" "block" -A "$UA" -Lk "${URL}/.git/config"
-    test_curl "URI: wp-config.php" "block" -A "$UA" -Lk "${URL}/wp-config.php"
-    test_curl "URI: config.php.bak" "block" -A "$UA" -Lk "${URL}/config.php.bak"
-    test_curl "URI: dump.sql" "block" -A "$UA" -Lk "${URL}/dump.sql"
-    test_curl "URI: backup.zip" "block" -A "$UA" -Lk "${URL}/backup.zip"
-    test_curl "URI: phpinfo.php" "block" -A "$UA" -Lk "${URL}/phpinfo.php"
+    test_curl "URI: .git/HEAD" "block" -A "$UA" -Lk "${URL}/.git/HEAD"
+    test_curl "URI: .svn/entries" "block" -A "$UA" -Lk "${URL}/.svn/entries"
     test_curl "URI: .DS_Store" "block" -A "$UA" -Lk "${URL}/.DS_Store"
+    
+    print_subsection "Backups e Dumps"
+    test_curl "URI: dump.sql" "block" -A "$UA" -Lk "${URL}/dump.sql"
+    test_curl "URI: database.sql" "block" -A "$UA" -Lk "${URL}/database.sql"
+    test_curl "URI: backup.sql" "block" -A "$UA" -Lk "${URL}/backup.sql"
+    test_curl "URI: db.sql" "block" -A "$UA" -Lk "${URL}/db.sql"
+    test_curl "URI: backup.zip" "block" -A "$UA" -Lk "${URL}/backup.zip"
+    test_curl "URI: backup.tar.gz" "block" -A "$UA" -Lk "${URL}/backup.tar.gz"
+    test_curl "URI: site.zip" "block" -A "$UA" -Lk "${URL}/site.zip"
+    
+    print_subsection "Ferramentas de Debug/Admin"
+    test_curl "URI: phpinfo.php" "block" -A "$UA" -Lk "${URL}/phpinfo.php"
+    test_curl "URI: info.php" "block" -A "$UA" -Lk "${URL}/info.php"
     test_curl "URI: adminer.php" "block" -A "$UA" -Lk "${URL}/adminer.php"
+    test_curl "URI: phpmyadmin" "block" -A "$UA" -Lk "${URL}/phpmyadmin/"
+    test_curl "URI: pma" "block" -A "$UA" -Lk "${URL}/pma/"
+}
+
+#==============================================================================
+# HEADER INJECTION (10 testes)
+#==============================================================================
+test_header_injection() {
+    print_section "💉 TESTES DE HEADER INJECTION (10 testes)"
+    
+    test_curl "CRLF: Injeção básica" "block" -A "$UA" -Lk -H $'X-Custom: test\r\nX-Injected: hacked' "$URL"
+    test_curl "CRLF: Set-Cookie injection" "block" -A "$UA" -Lk -H $'X-Test: test\r\nSet-Cookie: hacked=true' "$URL"
+    test_curl "X-Forwarded-Host: evil.com" "block" -A "$UA" -Lk -H "X-Forwarded-Host: evil.com" "$URL"
+    test_curl "X-Original-URL: /admin" "block" -A "$UA" -Lk -H "X-Original-URL: /admin" "$URL"
+    test_curl "X-Rewrite-URL: /admin" "block" -A "$UA" -Lk -H "X-Rewrite-URL: /admin" "$URL"
+    test_curl "X-HTTP-Method-Override: DELETE" "block" -A "$UA" -Lk -H "X-HTTP-Method-Override: DELETE" "$URL"
+    test_curl "X-HTTP-Method-Override: PUT" "block" -A "$UA" -Lk -H "X-HTTP-Method-Override: PUT" "$URL"
+    test_curl "Header com SQL Injection" "block" -A "$UA" -Lk -H "X-Custom: ' OR '1'='1" "$URL"
+    test_curl "Header com XSS" "block" -A "$UA" -Lk -H "X-Custom: <script>alert(1)</script>" "$URL"
+    test_curl "Header com null byte" "block" -A "$UA" -Lk -H "X-Custom: admin%00" "$URL"
+}
+
+#==============================================================================
+# CONTENT-TYPE ATTACKS (10 testes)
+#==============================================================================
+test_content_type() {
+    print_section "📄 TESTES DE CONTENT-TYPE ATTACKS (10 testes)"
+    
+    test_curl "CT: XXE via XML" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
+    test_curl "CT: XSS via SVG" "block" -A "$UA" -Lk -H "Content-Type: image/svg+xml" -d '<svg onload="alert(1)">' "$URL"
+    test_curl "CT: UTF-7 charset" "block" -A "$UA" -Lk -H "Content-Type: text/html; charset=UTF-7" "$URL"
+    test_curl "CT: text/html com XSS" "block" -A "$UA" -Lk -H "Content-Type: text/html" -d "<script>alert(1)</script>" "$URL"
+    test_curl "CT: multipart sem boundary" "block" -A "$UA" -Lk -H "Content-Type: multipart/form-data" "$URL"
+    test_curl "CT: SQLi em form" "block" -A "$UA" -Lk -H "Content-Type: application/x-www-form-urlencoded" -d "user=admin' OR 1=1--" "$URL"
+    test_curl "CT: tipo inexistente" "block" -A "$UA" -Lk -H "Content-Type: evil/payload" "$URL"
+    test_curl "CT: CRLF em Content-Type" "block" -A "$UA" -Lk -H $'Content-Type: text/html\r\nX-Injected: true' "$URL"
+    test_curl "CT: application/x-httpd-php" "block" -A "$UA" -Lk -H "Content-Type: application/x-httpd-php" -d "<?php system('id'); ?>" "$URL"
+    test_curl "CT: muito longo" "block" -A "$UA" -Lk -H "Content-Type: text/$(head -c 1000 /dev/zero | tr '\0' 'A')" "$URL"
+}
+
+#==============================================================================
+# ACCEPT-ENCODING ATTACKS (10 testes)
+#==============================================================================
+test_accept_encoding() {
+    print_section "🗜️ TESTES DE ACCEPT-ENCODING ATTACKS (10 testes)"
+    
+    test_curl "AE: muitos encodings" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip, deflate, br, compress, identity, *, sdch, xz, lzma" "$URL"
+    test_curl "AE: encoding inválido XSS" "block" -A "$UA" -Lk -H "Accept-Encoding: <script>alert(1)</script>" "$URL"
+    test_curl "AE: SQL Injection" "block" -A "$UA" -Lk -H "Accept-Encoding: ' OR 1=1--" "$URL"
+    test_curl "AE: encoding repetido" "block" -A "$UA" -Lk -H "Accept-Encoding: $(printf 'gzip,%.0s' {1..100})" "$URL"
+    test_curl "AE: chunked (smuggling)" "block" -A "$UA" -Lk -H "Accept-Encoding: chunked" "$URL"
+    test_curl "AE: null byte" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip%00deflate" "$URL"
+    test_curl "AE: CRLF injection" "block" -A "$UA" -Lk -H $'Accept-Encoding: gzip\r\nX-Injected: true' "$URL"
+    test_curl "AE: encoding inexistente" "block" -A "$UA" -Lk -H "Accept-Encoding: evil-encoding-doom" "$URL"
+    test_curl "AE: muito longo" "block" -A "$UA" -Lk -H "Accept-Encoding: $(head -c 2000 /dev/zero | tr '\0' 'A')" "$URL"
+    test_curl "AE: caracteres especiais" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip; q=1.0, *; q=0.5, ../../etc/passwd" "$URL"
+}
+
+#==============================================================================
+# X-FORWARDED-FOR SPOOFING (10 testes)
+#==============================================================================
+test_xff_spoofing() {
+    print_section "🌐 TESTES DE X-FORWARDED-FOR SPOOFING (10 testes)"
+    
+    test_curl "XFF: 127.0.0.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 127.0.0.1" "$URL"
+    test_curl "XFF: localhost" "block" -A "$UA" -Lk -H "X-Forwarded-For: localhost" "$URL"
+    test_curl "XFF: 192.168.1.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 192.168.1.1" "$URL"
+    test_curl "XFF: 10.0.0.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 10.0.0.1" "$URL"
+    test_curl "XFF: 169.254.169.254 (AWS)" "block" -A "$UA" -Lk -H "X-Forwarded-For: 169.254.169.254" "$URL"
+    test_curl "XFF: SQL Injection" "block" -A "$UA" -Lk -H "X-Forwarded-For: ' OR 1=1--" "$URL"
+    test_curl "XFF: XSS" "block" -A "$UA" -Lk -H "X-Forwarded-For: <script>alert(1)</script>" "$URL"
+    test_curl "XFF: múltiplos IPs forjados" "block" -A "$UA" -Lk -H "X-Forwarded-For: 8.8.8.8, 127.0.0.1, 192.168.1.1" "$URL"
+    test_curl "X-Real-IP: 127.0.0.1" "block" -A "$UA" -Lk -H "X-Real-IP: 127.0.0.1" "$URL"
+    test_curl "X-Client-IP: 192.168.0.1" "block" -A "$UA" -Lk -H "X-Client-IP: 192.168.0.1" "$URL"
+}
+
+#==============================================================================
+# RANGE HEADER ATTACKS (10 testes)
+#==============================================================================
+test_range_header() {
+    print_section "📊 TESTES DE RANGE HEADER ATTACKS (10 testes)"
+    
+    test_curl "Range: múltiplos ranges (DoS)" "block" -A "$UA" -Lk -H "Range: bytes=0-0,1-1,2-2,3-3,4-4,5-5,6-6,7-7,8-8,9-9" "$URL"
+    test_curl "Range: bytes=-1" "block" -A "$UA" -Lk -H "Range: bytes=-1" "$URL"
+    test_curl "Range: muito grande" "block" -A "$UA" -Lk -H "Range: bytes=0-99999999999999999" "$URL"
+    test_curl "Range: negativo" "block" -A "$UA" -Lk -H "Range: bytes=-99999999999" "$URL"
+    test_curl "Range: invertido" "block" -A "$UA" -Lk -H "Range: bytes=100-0" "$URL"
+    test_curl "Range: overlapping" "block" -A "$UA" -Lk -H "Range: bytes=0-100,50-150,100-200" "$URL"
+    test_curl "Range: XSS" "block" -A "$UA" -Lk -H "Range: bytes=<script>alert(1)</script>" "$URL"
+    test_curl "Range: SQL Injection" "block" -A "$UA" -Lk -H "Range: bytes=' OR 1=1--" "$URL"
+    test_curl "Range: 100+ ranges" "block" -A "$UA" -Lk -H "Range: bytes=$(for i in $(seq 0 2 200); do echo -n "$i-$((i+1)),"; done | sed 's/,$//')" "$URL"
+    test_curl "Range: formato inválido" "block" -A "$UA" -Lk -H "Range: invalid-format-attack" "$URL"
+}
+
+#==============================================================================
+# HTTP SMUGGLING ATTACKS (10 testes)
+#==============================================================================
+test_http_smuggling() {
+    print_section "🚢 TESTES DE HTTP SMUGGLING (10 testes)"
+    
+    test_curl "Smuggling: CL + TE" "block" -A "$UA" -Lk -H "Content-Length: 0" -H "Transfer-Encoding: chunked" "$URL"
+    test_curl "Smuggling: TE com espaço" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked " "$URL"
+    test_curl "Smuggling: TE + identity" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked, identity" "$URL"
+    test_curl "Smuggling: CL negativo" "block" -A "$UA" -Lk -H "Content-Length: -1" "$URL"
+    test_curl "Smuggling: CL muito grande" "block" -A "$UA" -Lk -H "Content-Length: 999999999999" "$URL"
+    test_curl "Smuggling: CL duplicado" "block" -A "$UA" -Lk -H "Content-Length: 0" -H "Content-Length: 100" "$URL"
+    test_curl "Smuggling: TE duplicado" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Transfer-Encoding: identity" "$URL"
+    test_curl "Smuggling: TE com tab" "block" -A "$UA" -Lk -H $'Transfer-Encoding:\tchunked' "$URL"
+    test_curl "Smuggling: X-TE header" "block" -A "$UA" -Lk -H "X-Transfer-Encoding: chunked" "$URL"
+    test_curl "Smuggling: TE com CRLF" "block" -A "$UA" -Lk -H $'Transfer-Encoding: chunked\r\n: x' "$URL"
 }
 
 #==============================================================================
@@ -445,12 +610,24 @@ case $CATEGORY in
     referer) test_bad_referers ;;
     host) test_invalid_host ;;
     uri) test_malicious_uri ;;
+    header) test_header_injection ;;
+    contenttype) test_content_type ;;
+    encoding) test_accept_encoding ;;
+    xff) test_xff_spoofing ;;
+    range) test_range_header ;;
+    smuggling) test_http_smuggling ;;
     all)
         test_all_http_methods
         test_malicious_cookies
         test_malicious_query
         test_invalid_host
         test_malicious_uri
+        test_header_injection
+        test_content_type
+        test_accept_encoding
+        test_xff_spoofing
+        test_range_header
+        test_http_smuggling
         test_bad_user_agents
         test_bad_referers
         test_good_bots
