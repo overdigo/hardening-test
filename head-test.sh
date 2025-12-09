@@ -5,7 +5,7 @@
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #==============================================================================
 
-set -euo pipefail
+set -uo pipefail
 VERSION="3.0.0"
 
 # Cores
@@ -58,17 +58,24 @@ test_curl() {
     local status_icon color result_text
     
     if [ "$expected_behavior" == "allow" ]; then
+        # Para requests que devem ser PERMITIDOS
         if [ "$response" == "200" ] || [ "$response" == "301" ] || [ "$response" == "302" ]; then
             color="${GREEN}"; status_icon="✓"; result_text="PASS"; PASSED_TESTS=$((PASSED_TESTS + 1))
-        elif [[ "$response" =~ ^[45] ]]; then
+        elif [[ "$response" =~ ^[45] ]] || [ "$response" == "000" ]; then
             color="${RED}"; status_icon="✗"; result_text="FAIL"; FAILED_TESTS=$((FAILED_TESTS + 1))
         else
             color="${YELLOW}"; status_icon="?"; result_text="WARN"
         fi
     else
-        if [ "$response" == "200" ] || [ "$response" == "404" ]; then
+        # Para requests que devem ser BLOQUEADOS
+        # HTTP 000 = conexão fechada (Nginx 444) = BLOQUEIO BEM SUCEDIDO
+        # HTTP 4xx (exceto 404) = BLOQUEIO BEM SUCEDIDO
+        # HTTP 200 ou 404 = FALHA (não bloqueou)
+        if [ "$response" == "000" ]; then
+            color="${GREEN}"; status_icon="✓"; result_text="PASS (444)"; PASSED_TESTS=$((PASSED_TESTS + 1))
+        elif [ "$response" == "200" ] || [ "$response" == "404" ]; then
             color="${RED}"; status_icon="✗"; result_text="FAIL"; FAILED_TESTS=$((FAILED_TESTS + 1))
-        elif [[ "$response" =~ ^[45] ]] && [ "$response" != "404" ]; then
+        elif [[ "$response" =~ ^[45] ]]; then
             color="${GREEN}"; status_icon="✓"; result_text="PASS"; PASSED_TESTS=$((PASSED_TESTS + 1))
         else
             color="${YELLOW}"; status_icon="?"; result_text="WARN"
@@ -82,7 +89,7 @@ test_curl() {
 print_section() {
     echo ""
     echo -e "${BOLD}${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BOLD}${MAGENTA}$1 $2${NC}"
+    echo -e "${BOLD}${MAGENTA}$1${NC}"
     echo -e "${BOLD}${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
