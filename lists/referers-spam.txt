@@ -1,0 +1,69 @@
+# Referers SPAM - Tráfego falso, sites de gambling, adulto e spam
+# Estes referers são usados para inflar métricas e spam analytics
+
+# Spam de Tráfego
+darodar.com
+get-free-traffic-now.com
+free-social-buttons.com
+free-share-buttons.com
+floating-share-buttons.com
+sharebutton.net
+buttons-for-website.com
+buttons-for-your-website.com
+share-buttons.xyz
+free-floating-buttons.com
+free-traffic.xyz
+traffic-cash.xyz
+traffic2money.com
+trafficmonetize.org
+auto-traffic.xyz
+event-tracking.com
+
+# Gambling/Casino SPAM
+poker-online.com
+casinoonline.xyz
+poker-games.xyz
+free-spins.xyz
+slot-machines.xyz
+gambling-online.xyz
+
+# Sites Adultos SPAM
+adult-site.xyz
+pornsite.xyz
+sexsite.xyz
+datingsite.xyz
+hookupsite.xyz
+
+# Money-making SPAM
+makemoneyonline.com
+7makemoneyonline.com
+makemoneyagency.xyz
+quick-profit.xyz
+buy-cheap-online.info
+forex-trading-now.info
+best-deals-online.com
+
+# Video SPAM
+savetubevideo.com
+videos-for-your-business.com
+video--production.com
+
+# Pirataria de Música SPAM
+descargar-musica-gratis.net
+baixar-musicas-gratis.com
+
+# Outros SPAM conhecidos
+hulfingtonpost.com
+econom.co
+4webmasters.org
+webmonetizer.net
+snip.to
+zx6.ru
+o-o-8-o-o.ru
+o-o-6-o-o.com
+o-o-8-o-o.com
+guardlink.org
+adviceforum.info
+priceg.com
+screentoolkit.com
+fix-website-errors.com

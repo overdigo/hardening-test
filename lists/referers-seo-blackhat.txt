@@ -1,0 +1,47 @@
+# Referers SEO Black Hat - Sites de SEO fraudulento e manipulação de rankings
+# Estes referers são usados para manipular métricas e análise de SEO
+
+# SEO Fraudulento conhecidos
+semalt.com
+100dollars-seo.com
+best-seo-offer.com
+best-seo-solution.com
+seoanalyses.com
+ilovevitaly.com
+ranksonic.info
+success-seo.com
+rankings-analytics.com
+seoexperimentseo.xyz
+qualitymarketzone.com
+domainsigma.com
+webresearchermaster.com
+best-seo-service.xyz
+improve-ranking.xyz
+seo-fast.xyz
+ranking-boost.xyz
+seopower.xyz
+free-seo-audit.xyz
+web-monetize.xyz
+
+# Fake Analytics
+analytics-live.xyz
+
+# Search Engine SPAM
+100searchengines.com
+
+# SEO Tools Maliciosos
+seotoolbot.com
+
+# Indexadores Falsos
+o-o-8-o-o.ru
+o-o-6-o-o.com
+o-o-8-o-o.com
+
+# Domínios .xyz suspeitos de SEO manipulation
+trafficbot.xyz
+rankingbot.xyz
+searchbot.xyz
+
+# Link Building Spam
+webmonetizer.net
+4webmasters.org

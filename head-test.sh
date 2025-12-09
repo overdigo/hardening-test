@@ -319,12 +319,12 @@ test_bad_user_agents() {
 }
 
 #==============================================================================
-# REFERERS MALICIOSOS DA LISTA
+# REFERERS SPAM (Tráfego falso, gambling, adulto)
 #==============================================================================
-test_bad_referers() {
-    print_section "🔙 TESTES DE REFERERS MALICIOSOS (100 da lista)"
+test_referers_spam() {
+    print_section "📧 TESTES DE REFERERS SPAM (Tráfego falso, gambling, adulto)"
     
-    local list_file="${SCRIPT_DIR}/lists/bad-referers.txt"
+    local list_file="${SCRIPT_DIR}/lists/referers-spam.txt"
     if [ ! -f "$list_file" ]; then
         echo -e "${RED}  Lista não encontrada: $list_file${NC}"
         return
@@ -335,9 +335,70 @@ test_bad_referers() {
         [ -z "$ref" ] && continue
         [ "${ref:0:1}" == "#" ] && continue
         count=$((count + 1))
-        test_curl "Bad Referer #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "http://$ref" "$URL"
-        [ $count -ge 100 ] && break
+        test_curl "SPAM Referer #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "http://$ref" "$URL"
     done < "$list_file"
+    
+    echo -e "\n  ${CYAN}Total SPAM referers testados: $count${NC}"
+}
+
+#==============================================================================
+# REFERERS SEO BLACK HAT (Manipulação de rankings)
+#==============================================================================
+test_referers_seo_blackhat() {
+    print_section "🎩 TESTES DE REFERERS SEO BLACK HAT (Manipulação de rankings)"
+    
+    local list_file="${SCRIPT_DIR}/lists/referers-seo-blackhat.txt"
+    if [ ! -f "$list_file" ]; then
+        echo -e "${RED}  Lista não encontrada: $list_file${NC}"
+        return
+    fi
+    
+    local count=0
+    while IFS= read -r ref || [ -n "$ref" ]; do
+        [ -z "$ref" ] && continue
+        [ "${ref:0:1}" == "#" ] && continue
+        count=$((count + 1))
+        test_curl "SEO BlackHat #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "http://$ref" "$URL"
+    done < "$list_file"
+    
+    echo -e "\n  ${CYAN}Total SEO Black Hat referers testados: $count${NC}"
+}
+
+#==============================================================================
+# REFERERS INJECTION (Bots falsos, XSS, SQLi, CMDi via referer)
+#==============================================================================
+test_referers_injection() {
+    print_section "💉 TESTES DE REFERERS INJECTION (Bots falsos e payloads)"
+    
+    local list_file="${SCRIPT_DIR}/lists/referers-injection.txt"
+    if [ ! -f "$list_file" ]; then
+        echo -e "${RED}  Lista não encontrada: $list_file${NC}"
+        return
+    fi
+    
+    local count=0
+    while IFS= read -r ref || [ -n "$ref" ]; do
+        [ -z "$ref" ] && continue
+        [ "${ref:0:1}" == "#" ] && continue
+        count=$((count + 1))
+        # Para injection, alguns são URLs completas, outros são payloads
+        if [[ "$ref" == http* ]] || [[ "$ref" == javascript:* ]] || [[ "$ref" == data:* ]] || [[ "$ref" == file:* ]] || [[ "$ref" == ftp:* ]]; then
+            test_curl "Injection Referer #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "$ref" "$URL"
+        else
+            test_curl "Injection Referer #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "http://$ref" "$URL"
+        fi
+    done < "$list_file"
+    
+    echo -e "\n  ${CYAN}Total Injection referers testados: $count${NC}"
+}
+
+#==============================================================================
+# WRAPPER: TODOS OS REFERERS MALICIOSOS
+#==============================================================================
+test_bad_referers() {
+    test_referers_spam
+    test_referers_seo_blackhat
+    test_referers_injection
 }
 
 #==============================================================================
@@ -899,7 +960,10 @@ case $CATEGORY in
     cookie) test_malicious_cookies ;;
     query) test_malicious_query ;;
     useragent) test_bad_user_agents; test_good_bots; test_fake_bots ;;
-    referer) test_bad_referers ;;
+    referer|referer-all) test_bad_referers ;;
+    referer-spam|spam) test_referers_spam ;;
+    referer-seo|seoblackhat) test_referers_seo_blackhat ;;
+    referer-injection|injection-referer) test_referers_injection ;;
     host) test_invalid_host ;;
     uri) test_malicious_uri ;;
     header) test_header_injection ;;

