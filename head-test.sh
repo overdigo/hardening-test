@@ -1,12 +1,12 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 3.1.0
+# Versão: 3.2.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #==============================================================================
 
 set -uo pipefail
-VERSION="3.1.0"
+VERSION="3.2.0"
 
 # Cores
 RED='\033[0;31m'
@@ -885,6 +885,145 @@ test_ssrf_attacks() {
 }
 
 #==============================================================================
+# PATH/URL BYPASS TECHNIQUES (40+ testes)
+#==============================================================================
+test_path_bypass() {
+    print_section "🔓 TESTES DE PATH/URL BYPASS (40+ testes)"
+    
+    print_subsection "Null Byte Injection"
+    test_curl "Null Byte: admin.php%00.html" "block" -A "$UA" -Lk --path-as-is "${URL}/admin.php%00.html"
+    test_curl "Null Byte: admin%00" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%00"
+    test_curl "Null Byte: admin.php%00.jpg" "block" -A "$UA" -Lk --path-as-is "${URL}/admin.php%00.jpg"
+    test_curl "Null Byte: config.php%00.txt" "block" -A "$UA" -Lk --path-as-is "${URL}/config.php%00.txt"
+    test_curl "Null Byte: /etc/passwd%00" "block" -A "$UA" -Lk --path-as-is "${URL}/../../../etc/passwd%00"
+    
+    print_subsection "HTTP Version Downgrade"
+    test_curl "HTTP/1.0: /admin" "block" -A "$UA" -Lk --http1.0 "${URL}/admin"
+    test_curl "HTTP/1.0: /wp-admin" "block" -A "$UA" -Lk --http1.0 "${URL}/wp-admin"
+    test_curl "HTTP/1.0: /phpmyadmin" "block" -A "$UA" -Lk --http1.0 "${URL}/phpmyadmin"
+    
+    print_subsection "Parameter Tampering"
+    test_curl "Param: /admin?unused_param=1" "block" -A "$UA" -Lk "${URL}/admin?unused_param=1"
+    test_curl "Param: /admin?foo=bar" "block" -A "$UA" -Lk "${URL}/admin?foo=bar"
+    test_curl "Param: /admin?debug=1" "block" -A "$UA" -Lk "${URL}/admin?debug=1"
+    test_curl "Param: /admin?bypass=true" "block" -A "$UA" -Lk "${URL}/admin?bypass=true"
+    test_curl "Fragment: /admin?foo=bar#" "block" -A "$UA" -Lk "${URL}/admin?foo=bar#"
+    
+    print_subsection "Case Manipulation"
+    test_curl "Case: /Admin" "block" -A "$UA" -Lk "${URL}/Admin"
+    test_curl "Case: /ADMIN" "block" -A "$UA" -Lk "${URL}/ADMIN"
+    test_curl "Case: /aDmIn" "block" -A "$UA" -Lk "${URL}/aDmIn"
+    test_curl "Case: /Wp-Admin" "block" -A "$UA" -Lk "${URL}/Wp-Admin"
+    test_curl "Case: /WP-ADMIN" "block" -A "$UA" -Lk "${URL}/WP-ADMIN"
+    
+    print_subsection "Trailing Slash e Dot"
+    test_curl "Trailing Slash: /admin/" "block" -A "$UA" -Lk "${URL}/admin/"
+    test_curl "Trailing Dot: /admin." "block" -A "$UA" -Lk "${URL}/admin."
+    test_curl "Double Trailing Slash: /admin//" "block" -A "$UA" -Lk "${URL}/admin//"
+    test_curl "Trailing Dot+Slash: /admin./" "block" -A "$UA" -Lk "${URL}/admin./"
+    
+    print_subsection "Path Confusion (..;/ e similares)"
+    test_curl "Path Confusion: /..;/admin" "block" -A "$UA" -Lk --path-as-is "${URL}/..;/admin"
+    test_curl "Path Confusion: /;/admin" "block" -A "$UA" -Lk --path-as-is "${URL}/;/admin"
+    test_curl "Path Confusion: /.;/admin" "block" -A "$UA" -Lk --path-as-is "${URL}/.;/admin"
+    test_curl "Path Confusion: /./admin" "block" -A "$UA" -Lk --path-as-is "${URL}/./admin"
+    test_curl "Path Confusion: /admin/." "block" -A "$UA" -Lk --path-as-is "${URL}/admin/."
+    
+    print_subsection "Double Slashes e Multiple Slashes"
+    test_curl "Double Slash: //admin" "block" -A "$UA" -Lk "${URL}//admin"
+    test_curl "Double Slash: //admin//" "block" -A "$UA" -Lk "${URL}//admin//"
+    test_curl "Triple Slash: ///admin" "block" -A "$UA" -Lk "${URL}///admin"
+    test_curl "Multiple Slash: ////admin////" "block" -A "$UA" -Lk "${URL}////admin////"
+    
+    print_subsection "URL Encoding Bypass"
+    test_curl "Encoded Slash: /admin%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%2f"
+    test_curl "Encoded Slash: /%2fadmin" "block" -A "$UA" -Lk --path-as-is "${URL}/%2fadmin"
+    test_curl "Double Encoded: /admin%252f" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%252f"
+    test_curl "Encoded Dot: /admin%2e" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%2e"
+    test_curl "Encoded a: /%61dmin" "block" -A "$UA" -Lk --path-as-is "${URL}/%61dmin"
+    
+    print_subsection "Random Extension Append"
+    test_curl "Extension: /admin.php" "block" -A "$UA" -Lk "${URL}/admin.php"
+    test_curl "Extension: /admin.json" "block" -A "$UA" -Lk "${URL}/admin.json"
+    test_curl "Extension: /admin.html" "block" -A "$UA" -Lk "${URL}/admin.html"
+    test_curl "Extension: /admin.xml" "block" -A "$UA" -Lk "${URL}/admin.xml"
+    test_curl "Extension: /admin.aspx" "block" -A "$UA" -Lk "${URL}/admin.aspx"
+    
+    print_subsection "Backslash e Mixed Slashes"
+    test_curl "Backslash: \\admin" "block" -A "$UA" -Lk --path-as-is "${URL}/\\admin"
+    test_curl "Mixed: /admin\\" "block" -A "$UA" -Lk --path-as-is "${URL}/admin\\"
+    test_curl "Mixed: /admin\\/" "block" -A "$UA" -Lk --path-as-is "${URL}/admin\\/"
+    test_curl "Mixed: \\/admin" "block" -A "$UA" -Lk --path-as-is "${URL}\\/admin"
+    
+    print_subsection "Trailing Semicolon e Space"
+    test_curl "Semicolon: /admin;" "block" -A "$UA" -Lk --path-as-is "${URL}/admin;"
+    test_curl "Semicolon: /admin;.js" "block" -A "$UA" -Lk --path-as-is "${URL}/admin;.js"
+    test_curl "Encoded Space: /admin%20" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%20"
+    test_curl "Tab: /admin%09" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%09"
+    
+    print_subsection "Unicode Tricks"
+    test_curl "Unicode Slash: /admin%c0%af" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%c0%af"
+    test_curl "Unicode Slash: /admin%ef%bc%8f" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%ef%bc%8f"
+    test_curl "Unicode Dot: /admin%c0%ae" "block" -A "$UA" -Lk --path-as-is "${URL}/admin%c0%ae"
+    test_curl "Fullwidth: /admin／" "block" -A "$UA" -Lk "${URL}/admin／"
+    test_curl "Fullwidth Path: ／admin" "block" -A "$UA" -Lk "${URL}/／admin"
+    
+    print_subsection "Path Normalization Bypass"
+    test_curl "Dot-Dot: /admin/../admin" "block" -A "$UA" -Lk "${URL}/admin/../admin"
+    test_curl "Dot-Dot-Dot: /admin/.../admin" "block" -A "$UA" -Lk --path-as-is "${URL}/admin/.../admin"
+    test_curl "Current Dir: /./././admin" "block" -A "$UA" -Lk "${URL}/./././admin"
+    test_curl "Mixed: /foo/../admin" "block" -A "$UA" -Lk "${URL}/foo/../admin"
+    
+    print_subsection "Special Characters in Path"
+    test_curl "Hash: /admin#" "block" -A "$UA" -Lk "${URL}/admin#"
+    test_curl "Question: /admin?" "block" -A "$UA" -Lk "${URL}/admin?"
+    test_curl "Ampersand: /admin&" "block" -A "$UA" -Lk --path-as-is "${URL}/admin&"
+    test_curl "Equals: /admin=" "block" -A "$UA" -Lk --path-as-is "${URL}/admin="
+    test_curl "Plus: /admin+" "block" -A "$UA" -Lk "${URL}/admin+"
+    
+    print_subsection "Path Fuzzing & Encoding (%2e = dot)"
+    test_curl "Encoded ..: /%2e%2e/admin" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%2e/admin"
+    test_curl "Encoded ..: /%2e%2e/%2e%2e/admin" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%2e/%2e%2e/admin"
+    test_curl "Mixed: /..%2fadmin" "block" -A "$UA" -Lk --path-as-is "${URL}/..%2fadmin"
+    test_curl "GET: /../admin/" "block" -A "$UA" -Lk -X GET "${URL}/../admin/"
+    test_curl "GET path-as-is: /../admin/" "block" -A "$UA" -Lk -X GET --path-as-is "${URL}/../admin/"
+    test_curl "Triple ..: /...%2f...%2fadmin" "block" -A "$UA" -Lk --path-as-is "${URL}/...%2f...%2fadmin"
+    test_curl "Overlong UTF-8 dot: /%c0%2e%c0%2e/admin" "block" -A "$UA" -Lk --path-as-is "${URL}/%c0%2e%c0%2e/admin"
+    
+    print_subsection "HTTP/HTTPS Protocol Switch"
+    # Extrair host da URL para testar protocolo alternativo
+    local host_part
+    host_part=$(echo "$URL" | sed -E 's|https?://([^/]+).*|\1|')
+    if [[ "$URL" == https://* ]]; then
+        test_curl "HTTP (sem TLS): /admin" "block" -A "$UA" -Lk "http://${host_part}/admin"
+        test_curl "HTTP (sem TLS): /private" "block" -A "$UA" -Lk "http://${host_part}/private"
+        test_curl "HTTP (sem TLS): /wp-admin" "block" -A "$UA" -Lk "http://${host_part}/wp-admin"
+    else
+        test_curl "HTTPS: /admin" "block" -A "$UA" -Lk "https://${host_part}/admin"
+        test_curl "HTTPS: /private" "block" -A "$UA" -Lk "https://${host_part}/private"
+        test_curl "HTTPS: /wp-admin" "block" -A "$UA" -Lk "https://${host_part}/wp-admin"
+    fi
+    
+    print_subsection "Portas Alternativas"
+    local base_host
+    base_host=$(echo "$host_part" | sed -E 's|:[0-9]+$||')
+    local protocol
+    [[ "$URL" == https://* ]] && protocol="https" || protocol="http"
+    test_curl "Porta 8080: /admin" "block" -A "$UA" -Lk --connect-timeout 3 "${protocol}://${base_host}:8080/admin" 2>/dev/null || true
+    test_curl "Porta 8443: /admin" "block" -A "$UA" -Lk --connect-timeout 3 "https://${base_host}:8443/admin" 2>/dev/null || true
+    test_curl "Porta 8000: /admin" "block" -A "$UA" -Lk --connect-timeout 3 "${protocol}://${base_host}:8000/admin" 2>/dev/null || true
+    test_curl "Porta 3000: /admin" "block" -A "$UA" -Lk --connect-timeout 3 "${protocol}://${base_host}:3000/admin" 2>/dev/null || true
+    test_curl "Porta 9000: /admin" "block" -A "$UA" -Lk --connect-timeout 3 "${protocol}://${base_host}:9000/admin" 2>/dev/null || true
+    
+    print_subsection "Subdomínios Alternativos (via Host header)"
+    test_curl "Subdomain: admin.host" "block" -A "$UA" -Lk -H "Host: admin.${base_host}" "${URL}/admin"
+    test_curl "Subdomain: dev.host" "block" -A "$UA" -Lk -H "Host: dev.${base_host}" "${URL}/admin"
+    test_curl "Subdomain: api.host" "block" -A "$UA" -Lk -H "Host: api.${base_host}" "${URL}/admin"
+    test_curl "Subdomain: staging.host" "block" -A "$UA" -Lk -H "Host: staging.${base_host}" "${URL}/admin"
+    test_curl "Subdomain: internal.host" "block" -A "$UA" -Lk -H "Host: internal.${base_host}" "${URL}/admin"
+}
+
+#==============================================================================
 # RESUMO FINAL
 #==============================================================================
 print_summary() {
@@ -977,6 +1116,7 @@ case $CATEGORY in
     php) test_php_attacks ;;
     database|db) test_database_attacks ;;
     ssrf) test_ssrf_attacks ;;
+    pathbypass|bypass) test_path_bypass ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -993,6 +1133,7 @@ case $CATEGORY in
         test_php_attacks
         test_database_attacks
         test_ssrf_attacks
+        test_path_bypass
         test_bad_user_agents
         test_bad_referers
         test_good_bots

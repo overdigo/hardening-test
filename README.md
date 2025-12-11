@@ -1,10 +1,10 @@
 # 🛡️ HTTP Header Security Testing Suite
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.2.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
-  <img src="https://img.shields.io/badge/tests-116%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-500%2B-brightgreen.svg" alt="Tests">
 </p>
 
 <p align="center">
@@ -39,37 +39,45 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 - ✅ Validar proteções contra injeções (SQL, XSS, Command)
 - ✅ Auditar conformidade com boas práticas de segurança
 - ✅ Identificar vulnerabilidades antes de atacantes
+- ✅ Testar técnicas de bypass de filtros e WAF
 
 ---
 
 ## ✨ Funcionalidades
 
-### 🎯 116+ Testes de Segurança
+### 🎯 500+ Testes de Segurança
 
 | Categoria | Quantidade | Descrição |
 |-----------|------------|-----------|
 | Host Inválido | 10 | Testes de Host header spoofing |
-| Cookie Malicioso | 10 | XSS, SQL Injection, overflow em cookies |
-| Método HTTP | 10 | TRACE, PUT, DELETE, WebDAV, etc. |
-| Query String | 10 | SQL Injection, XSS, LFI, RFI |
-| URI Maliciosa | 10 | Acesso a arquivos sensíveis |
-| Referer Malicioso | 10 | Spam SEO, injection via referer |
-| User-Agent | 15 | Bots maliciosos e legítimos |
-| Header Injection | 10 | CRLF, X-Forwarded, override |
-| Content-Type | 10 | XXE, XSS, MIME type attacks |
-| X-Forwarded-For | 10 | IP spoofing, bypass de WAF |
-| Range Header | 8 | DoS via range requests |
-| Accept-Encoding | 8 | Encoding attacks |
-| HTTP Smuggling | 5 | Request smuggling básico |
+| Cookie Malicioso | 30 | XSS, SQL Injection, overflow, encoding attacks |
+| Método HTTP | 50 | TRACE, PUT, DELETE, WebDAV, métodos customizados |
+| Query String | 50 | SQL Injection, XSS, LFI, RFI, CMDi |
+| URI Maliciosa | 50 | WordPress, arquivos sensíveis, backups |
+| Referer Malicioso | 100+ | SPAM, SEO Black Hat, Injection payloads |
+| User-Agent | 100+ | Bots maliciosos, scrapers, scanners |
+| Header Injection | 20 | CRLF, X-Forwarded, override attacks |
+| Content-Type | 20 | XXE, XSS, MIME type attacks |
+| X-Forwarded-For | 20 | IP spoofing, bypass de WAF |
+| Range Header | 20 | DoS via range requests |
+| Accept-Encoding | 20 | Encoding attacks, overflow |
+| HTTP Smuggling | 20 | CL.TE, TE.CL, header obfuscation |
+| Nginx Attacks | 20 | Path traversal, buffer overflow, config exposure |
+| PHP Attacks | 20 | Wrappers, deserialization, code injection |
+| Database Attacks | 20 | MySQL/MariaDB specific SQLi |
+| SSRF Attacks | 15 | Cloud metadata, internal networks |
+| **Path/URL Bypass** | **70+** | **🆕 Null byte, encoding, protocol switch, ports** |
+| Fake Bots | 10 | Impostores de Googlebot/Bingbot |
 
-### 🛠️ Recursos Adicionais
+### 🛠️ Recursos
 
 - **Modo Verbose**: Detalhes de cada requisição
 - **Exportação de Resultados**: Salva em arquivo para análise
 - **Seleção de Categorias**: Execute apenas os testes necessários
-- **User-Agent Customizável**: Escolha entre 10 UAs populares
+- **15 User-Agents**: Desktop, Mobile, Tablets de diferentes navegadores
 - **Resultados Coloridos**: Fácil identificação de falhas
 - **Resumo Estatístico**: Taxa de sucesso e métricas
+- **Listas Externas**: Suporte a listas customizadas de User-Agents e Referers
 
 ---
 
@@ -93,15 +101,15 @@ curl --version
 ### Opção 1: Clone do repositório
 
 ```bash
-git clone https://github.com/seu-usuario/http-header-security-test.git
-cd http-header-security-test
+git clone https://github.com/seu-usuario/hardening-test.git
+cd hardening-test
 chmod +x head-test.sh
 ```
 
 ### Opção 2: Download direto
 
 ```bash
-curl -O https://raw.githubusercontent.com/seu-usuario/http-header-security-test/main/head-test.sh
+curl -O https://raw.githubusercontent.com/seu-usuario/hardening-test/main/head-test.sh
 chmod +x head-test.sh
 ```
 
@@ -122,185 +130,77 @@ chmod +x head-test.sh
 | `-h, --help` | Mostra a ajuda |
 | `-v, --verbose` | Modo verboso com detalhes |
 | `-o, --output <arquivo>` | Salva resultados em arquivo |
-| `-u, --user-agent <num>` | Seleciona User-Agent (1-10) |
+| `-u, --user-agent <num>` | Seleciona User-Agent (1-15) |
 | `-c, --category <cat>` | Executa categoria específica |
-| `--version` | Mostra a versão |
-| `--list-categories` | Lista categorias disponíveis |
 
 ---
 
 ## 🧪 Categorias de Testes
 
-### 1. 🏠 Host Inválido (`host`)
-Testa manipulação do header Host para bypass de controles.
+### Categorias Disponíveis
+
+| Categoria | Alias | Descrição |
+|-----------|-------|-----------|
+| `all` | - | Executa todos os testes |
+| `method` | - | Métodos HTTP |
+| `cookie` | - | Cookies maliciosos |
+| `query` | - | Query strings maliciosas |
+| `host` | - | Host headers inválidos |
+| `uri` | - | URIs maliciosas (WordPress, arquivos) |
+| `header` | - | Header injection |
+| `contenttype` | - | Content-Type attacks |
+| `encoding` | - | Accept-Encoding attacks |
+| `xff` | - | X-Forwarded-For spoofing |
+| `range` | - | Range header attacks |
+| `smuggling` | - | HTTP smuggling |
+| `nginx` | - | Nginx specific attacks |
+| `php` | - | PHP specific attacks |
+| `database` | `db` | Database/SQL injection |
+| `ssrf` | - | SSRF attacks |
+| `pathbypass` | `bypass` | 🆕 Path/URL bypass techniques |
+| `useragent` | - | User-Agent tests |
+| `referer` | `referer-all` | Todos os referers maliciosos |
+| `referer-spam` | `spam` | Apenas referers SPAM |
+| `referer-seo` | `seoblackhat` | Apenas SEO Black Hat |
+| `referer-injection` | `injection-referer` | Apenas injection payloads |
+| `fakebots` | - | Fake bot detection |
+
+---
+
+## 🆕 Path/URL Bypass (v3.2.0)
+
+Nova categoria com **70+ testes** de técnicas de bypass de filtros:
+
+### Técnicas Testadas
+
+| Técnica | Exemplo | Descrição |
+|---------|---------|-----------|
+| Null Byte Injection | `/admin.php%00.html` | Trunca extensão de arquivos |
+| HTTP Version Downgrade | `--http1.0` | Bypass via protocolo antigo |
+| Parameter Tampering | `/admin?unused=1` | Bypass de filtros de path exato |
+| Case Manipulation | `/Admin`, `/ADMIN` | Bypass de filtros case-sensitive |
+| Trailing Slash/Dot | `/admin/`, `/admin.` | Bypass de match exato |
+| Path Confusion | `/..;/admin`, `/;/admin` | Confusão de parsers |
+| Double Slashes | `//admin//` | Bypass de normalização |
+| URL Encoding | `/admin%2f`, `/%2fadmin` | Bypass com encoding |
+| Unicode Tricks | `/admin%c0%af`, `／admin` | Bypass com caracteres Unicode |
+| Random Extensions | `/admin.php`, `/admin.json` | Bypass de extensões desconhecidas |
+| Backslash/Mixed | `\admin`, `/admin\/` | Confusão de path parsers |
+| Semicolon/Space | `/admin;`, `/admin%20` | Bypass de parsers permissivos |
+| Path Fuzzing | `/%2e%2e/admin` | Encoded path traversal |
+| HTTP/HTTPS Switch | `http://` vs `https://` | Bypass de regras por protocolo |
+| Alternate Ports | `:8080`, `:8443`, `:8000` | Serviços em portas alternativas |
+| Subdomain Spoofing | `Host: admin.example.com` | Virtual host bypass |
+
+### Exemplo de uso
 
 ```bash
-./head-test.sh -c host https://example.com
+# Executar apenas testes de path bypass
+./head-test.sh -c pathbypass https://meusite.com
+
+# Ou usando alias
+./head-test.sh -c bypass https://meusite.com
 ```
-
-**Vetores testados:**
-- `127.0.0.1`, `localhost`, `[::1]`
-- AWS metadata IP (`169.254.169.254`)
-- Domínios maliciosos
-- XSS no Host header
-
-### 2. 🍪 Cookie Malicioso (`cookie`)
-Verifica proteções contra cookies maliciosos.
-
-```bash
-./head-test.sh -c cookie https://example.com
-```
-
-**Vetores testados:**
-- XSS (URL encoded, Unicode)
-- SQL Injection
-- Command Injection
-- Cookie overflow (4KB+)
-- CRLF Injection
-
-### 3. 📝 Método HTTP (`method`)
-Testa métodos HTTP que devem ser bloqueados.
-
-```bash
-./head-test.sh -c method https://example.com
-```
-
-**Métodos testados:**
-- TRACE, OPTIONS, PUT, DELETE, PATCH
-- CONNECT, PROPFIND, MKCOL, COPY, MOVE
-
-### 4. 🔍 Query String Maliciosa (`query`)
-Verifica proteção contra injeções em parâmetros.
-
-```bash
-./head-test.sh -c query https://example.com
-```
-
-**Vetores testados:**
-- SQL Injection (UNION, DROP, OR 1=1)
-- XSS refletido
-- LFI/RFI (Local/Remote File Inclusion)
-- Command Injection
-- PHP eval() injection
-
-### 5. 🔗 URI Maliciosa (`uri`)
-Testa acesso a arquivos e diretórios sensíveis.
-
-```bash
-./head-test.sh -c uri https://example.com
-```
-
-**Arquivos testados:**
-- `.htaccess`, `.env`, `.git/config`
-- `config.php.bak`, `dump.sql`, `backup.zip`
-- `wp-config.php`, `phpinfo.php`
-- `.DS_Store`, `vendor/autoload.php`
-
-### 6. 🔙 Referer Malicioso (`referer`)
-Verifica manipulação do header Referer.
-
-```bash
-./head-test.sh -c referer https://example.com
-```
-
-**Vetores testados:**
-- SQL Injection/XSS no Referer
-- Spam SEO (semalt, buttons-for-website)
-- Referer overflow
-- CRLF Injection
-
-### 7. 🤖 User-Agent (`useragent`)
-Testa detecção de bots maliciosos e legítimos.
-
-```bash
-./head-test.sh -c useragent https://example.com
-```
-
-**Bots maliciosos:**
-- `curl`, `wget`, `python-requests`
-- `AhrefsBot`, `MJ12bot`, `SemrushBot`
-- `Nikto`, `sqlmap`
-
-**Bots legítimos:**
-- `Googlebot`, `Bingbot`
-- `DuckDuckBot`, `Facebot`
-
-### 8. 💉 Header Injection (`header`)
-Testa injeção de cabeçalhos maliciosos.
-
-```bash
-./head-test.sh -c header https://example.com
-```
-
-**Vetores testados:**
-- CRLF Injection
-- X-Forwarded-Host spoofing
-- X-Original-URL bypass
-- X-HTTP-Method-Override
-- Header com null byte
-
-### 9. 📄 Content-Type (`contenttype`)
-Testa manipulação de Content-Type.
-
-```bash
-./head-test.sh -c contenttype https://example.com
-```
-
-**Vetores testados:**
-- XXE via XML
-- XSS via SVG
-- Charset malicioso (UTF-7)
-- Content-Type duplo
-
-### 10. 🌐 X-Forwarded-For (`forwarded`)
-Testa spoofing de IP de origem.
-
-```bash
-./head-test.sh -c forwarded https://example.com
-```
-
-**Vetores testados:**
-- IPs privados/localhost
-- AWS metadata IP
-- SQL Injection/XSS no XFF
-- X-Real-IP e X-Client-IP
-
-### 11. 📊 Range Header (`range`)
-Testa ataques via Range header.
-
-```bash
-./head-test.sh -c range https://example.com
-```
-
-**Vetores testados:**
-- Multiple ranges (DoS)
-- Range overflow
-- Range invertido
-- Caracteres inválidos
-
-### 12. 🗜️ Accept-Encoding (`encoding`)
-Testa manipulação de encoding.
-
-```bash
-./head-test.sh -c encoding https://example.com
-```
-
-**Vetores testados:**
-- Encoding inválido
-- SQL Injection no header
-- Null byte e CRLF
-
-### 13. 🚢 HTTP Smuggling (`smuggling`)
-Testa técnicas básicas de request smuggling.
-
-```bash
-./head-test.sh -c smuggling https://example.com
-```
-
-**Vetores testados:**
-- Content-Length + Transfer-Encoding
-- Transfer-Encoding com espaço
-- Content-Length negativo/muito grande
 
 ---
 
@@ -328,6 +228,12 @@ Testa técnicas básicas de request smuggling.
 
 ```bash
 ./head-test.sh -u 1 https://meusite.com.br
+```
+
+### Testar técnicas de bypass
+
+```bash
+./head-test.sh -c pathbypass https://meusite.com.br
 ```
 
 ### Múltiplas opções
@@ -361,20 +267,37 @@ Testa técnicas básicas de request smuggling.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏠 TESTES DE HOST INVÁLIDO
+🔓 TESTES DE PATH/URL BYPASS (70+ testes)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  [✓] Host: 127.0.0.1                           PASS (HTTP 403)
-  [✓] Host: localhost                            PASS (HTTP 403)
-  [✗] Host: evil.com                             FAIL (HTTP 200)
+  ── Null Byte Injection ──
+  [✓] Null Byte: admin.php%00.html            PASS (HTTP 400)
+  [✓] Null Byte: admin%00                     PASS (HTTP 400)
+  
+  ── Case Manipulation ──
+  [✓] Case: /Admin                            PASS (HTTP 404)
+  [✗] Case: /ADMIN                            FAIL (HTTP 200)
 ```
 
 ---
 
 ## 🔧 Configuração do Servidor
 
-### Nginx - Exemplo de proteção
+### Nginx - Proteção contra bypass
 
 ```nginx
+# Normalizar múltiplas barras
+merge_slashes on;
+
+# Bloquear null bytes
+if ($request_uri ~* "%00") {
+    return 400;
+}
+
+# Bloquear caracteres suspeitos no path
+if ($request_uri ~* "(%2e|%2f|%5c|%00|%c0%af|%ef%bc%8f)") {
+    return 400;
+}
+
 # Bloquear hosts inválidos
 if ($host !~ ^(meusite\.com\.br|www\.meusite\.com\.br)$ ) {
     return 444;
@@ -385,15 +308,31 @@ if ($request_method !~ ^(GET|HEAD|POST)$ ) {
     return 405;
 }
 
-# Bloquear bots maliciosos
-if ($http_user_agent ~* (curl|wget|python|nikto|sqlmap) ) {
-    return 403;
+# Case-insensitive blocking para paths sensíveis
+location ~* ^/(admin|wp-admin|phpmyadmin) {
+    deny all;
 }
 ```
 
 ### ModSecurity - Proteção avançada
 
 O script testa muitos vetores que o ModSecurity com OWASP CRS pode bloquear automaticamente.
+
+---
+
+## 📁 Estrutura do Projeto
+
+```
+hardening-test/
+├── head-test.sh           # Script principal
+├── README.md              # Esta documentação
+├── LICENSE                # Licença MIT
+└── lists/                 # Listas de payloads
+    ├── bad-user-agents.txt
+    ├── referers-spam.txt
+    ├── referers-seo-blackhat.txt
+    └── referers-injection.txt
+```
 
 ---
 
@@ -415,6 +354,32 @@ Contribuições são bem-vindas! Por favor:
 - [ ] Integração com CI/CD
 - [ ] Testes paralelos para melhor performance
 - [ ] Suporte a proxy
+
+---
+
+## 📝 Changelog
+
+### v3.2.0 (2024-12-11)
+- 🆕 Nova categoria `pathbypass` com 70+ testes de bypass
+- 🆕 Null Byte Injection tests
+- 🆕 HTTP Version Downgrade tests
+- 🆕 Parameter Tampering tests
+- 🆕 Case Manipulation tests
+- 🆕 Unicode/Encoding bypass techniques
+- 🆕 HTTP/HTTPS protocol switch tests
+- 🆕 Alternate ports scanning (8080, 8443, 8000, 3000, 9000)
+- 🆕 Subdomain spoofing via Host header
+
+### v3.1.0
+- Adicionados testes de SSRF
+- Expandidos testes de Database attacks
+- Adicionados Fake Bots detection
+
+### v3.0.0
+- Expansão para 500+ testes
+- Referers categorizados (SPAM, SEO, Injection)
+- Testes específicos para Nginx, PHP, Database
+- 15 User-Agents modernos
 
 ---
 
