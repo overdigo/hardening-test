@@ -1,14 +1,14 @@
 # 🛡️ HTTP Header Security Testing Suite
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-4.1.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
-  <img src="https://img.shields.io/badge/tests-500%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-800%2B-brightgreen.svg" alt="Tests">
 </p>
 
 <p align="center">
-  <strong>Uma ferramenta abrangente para testar a segurança de cabeçalhos HTTP em servidores web.</strong>
+  <strong>Uma ferramenta abrangente para testar a segurança de cabeçalhos HTTP, protocolos e portas expostas em servidores web.</strong>
 </p>
 
 ---
@@ -21,8 +21,10 @@
 - [Instalação](#-instalação)
 - [Uso](#-uso)
 - [Categorias de Testes](#-categorias-de-testes)
+- [Novidades v4.1.0](#-novidades-v410)
 - [Exemplos](#-exemplos)
 - [Interpretando Resultados](#-interpretando-resultados)
+- [Configuração do Servidor](#-configuração-do-servidor)
 - [Contribuindo](#-contribuindo)
 - [Licença](#-licença)
 
@@ -30,43 +32,58 @@
 
 ## 📖 Sobre
 
-O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando projetada para avaliar a robustez das configurações de segurança de servidores web. Ela simula diversos tipos de ataques através de cabeçalhos HTTP maliciosos para verificar se o servidor está adequadamente protegido.
+O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando projetada para avaliar a robustez das configurações de segurança de servidores web. Ela simula diversos tipos de ataques através de cabeçalhos HTTP maliciosos, testa protocolos HTTP/1.0, 1.1, 2 e 3, e verifica portas de serviços que não devem estar expostas externamente.
 
 ### Por que usar?
 
 - ✅ Verificar configurações de WAF (Web Application Firewall)
 - ✅ Testar regras de segurança do Nginx/Apache
-- ✅ Validar proteções contra injeções (SQL, XSS, Command)
+- ✅ Validar proteções contra injeções (SQL, XSS, Command, XSLT, SSI/ESI)
 - ✅ Auditar conformidade com boas práticas de segurança
 - ✅ Identificar vulnerabilidades antes de atacantes
 - ✅ Testar técnicas de bypass de filtros e WAF
+- ✅ Verificar versões de protocolo HTTP suportadas
+- ✅ Detectar portas de serviços expostas indevidamente (MySQL, Redis, etc.)
+- ✅ Testar ataques avançados (Cache Poisoning, HTTP Smuggling, H2C, etc.)
 
 ---
 
 ## ✨ Funcionalidades
 
-### 🎯 500+ Testes de Segurança
+### 🎯 800+ Testes de Segurança
 
 | Categoria | Quantidade | Descrição |
 |-----------|------------|-----------|
-| Host Inválido | 10 | Testes de Host header spoofing |
-| Cookie Malicioso | 30 | XSS, SQL Injection, overflow, encoding attacks |
-| Método HTTP | 50 | TRACE, PUT, DELETE, WebDAV, métodos customizados |
+| Métodos HTTP | 30 | GET, POST, PUT, DELETE, WebDAV, métodos customizados |
+| Cookies Maliciosos | 40 | XSS, SQL Injection, overflow, encoding attacks |
 | Query String | 50 | SQL Injection, XSS, LFI, RFI, CMDi |
 | URI Maliciosa | 50 | WordPress, arquivos sensíveis, backups |
-| Referer Malicioso | 100+ | SPAM, SEO Black Hat, Injection payloads |
-| User-Agent | 100+ | Bots maliciosos, scrapers, scanners |
 | Header Injection | 20 | CRLF, X-Forwarded, override attacks |
 | Content-Type | 20 | XXE, XSS, MIME type attacks |
+| Accept-Encoding | 20 | Encoding attacks, overflow |
 | X-Forwarded-For | 20 | IP spoofing, bypass de WAF |
 | Range Header | 20 | DoS via range requests |
-| Accept-Encoding | 20 | Encoding attacks, overflow |
 | HTTP Smuggling | 20 | CL.TE, TE.CL, header obfuscation |
 | Nginx Attacks | 20 | Path traversal, buffer overflow, config exposure |
 | PHP Attacks | 20 | Wrappers, deserialization, code injection |
 | Database Attacks | 20 | MySQL/MariaDB specific SQLi |
 | SSRF Attacks | 15 | Cloud metadata, internal networks |
-| **Path/URL Bypass** | **70+** | **🆕 Null byte, encoding, protocol switch, ports** |
+| Rate Limiting | 10 | Brute force, login protection |
+| Injection Tests | 15 | Template, LDAP, XML injection |
+| Path/URL Bypass | 70+ | Null byte, encoding, protocol switch |
+| **🆕 HTTP Protocols** | **20** | HTTP/1.0, 1.1, 2 e 3 version tests |
+| **🆕 Hop-by-Hop Headers** | **25** | Connection header abuse, bypass |
+| **🆕 Cache Poisoning** | **30** | Cache key manipulation, deception |
+| **🆕 Connection Contamination** | **20** | Pipeline pollution, queue poisoning |
+| **🆕 Response Smuggling** | **25** | Response splitting, desync |
+| **🆕 H2C Smuggling** | **20** | HTTP/2 Cleartext smuggling |
+| **🆕 SSI/ESI Injection** | **30** | Server/Edge Side Includes |
+| **🆕 CDN/Cloudflare Bypass** | **25** | Origin IP discovery |
+| **🆕 XSLT Injection** | **20** | XSLT server-side injection |
+| **🆕 WAF Bypass** | **35** | Encoding, method, path bypass |
+| **🆕 Exposed Ports** | **45** | MySQL, Redis, Docker, K8s, etc. |
+| User-Agents | 100+ | Bots maliciosos, scrapers, scanners |
+| Referers | 100+ | SPAM, SEO Black Hat, Injection |
 | Fake Bots | 10 | Impostores de Googlebot/Bingbot |
 
 ### 🛠️ Recursos
@@ -77,14 +94,17 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 - **15 User-Agents**: Desktop, Mobile, Tablets de diferentes navegadores
 - **Resultados Coloridos**: Fácil identificação de falhas
 - **Resumo Estatístico**: Taxa de sucesso e métricas
-- **Listas Externas**: Suporte a listas customizadas de User-Agents e Referers
+- **Listas Externas**: Suporte a listas customizadas
+- **Port Scanning**: Verificação de portas sensíveis com netcat
+- **Protocol Testing**: Suporte a HTTP/1.0, 1.1, 2 e 3
 
 ---
 
 ## 📦 Requisitos
 
 - **Bash** 4.0 ou superior
-- **curl** (geralmente pré-instalado)
+- **curl** (com suporte a HTTP/2, idealmente HTTP/3)
+- **netcat (nc)** - para testes de portas expostas
 - **Sistema operacional**: Linux, macOS, WSL
 
 ### Verificar requisitos:
@@ -92,6 +112,14 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 ```bash
 bash --version
 curl --version
+nc -h
+```
+
+### Instalação de dependências (Debian/Ubuntu):
+
+```bash
+sudo apt update
+sudo apt install curl netcat-openbsd
 ```
 
 ---
@@ -137,27 +165,40 @@ chmod +x head-test.sh
 
 ## 🧪 Categorias de Testes
 
-### Categorias Disponíveis
+### Todas as Categorias Disponíveis
 
 | Categoria | Alias | Descrição |
 |-----------|-------|-----------|
 | `all` | - | Executa todos os testes |
-| `method` | - | Métodos HTTP |
+| `method` | - | Métodos HTTP (GET, POST, PUT, DELETE, etc.) |
 | `cookie` | - | Cookies maliciosos |
 | `query` | - | Query strings maliciosas |
 | `host` | - | Host headers inválidos |
-| `uri` | - | URIs maliciosas (WordPress, arquivos) |
+| `uri` | - | URIs maliciosas (WordPress, arquivos sensíveis) |
 | `header` | - | Header injection |
 | `contenttype` | - | Content-Type attacks |
 | `encoding` | - | Accept-Encoding attacks |
 | `xff` | - | X-Forwarded-For spoofing |
 | `range` | - | Range header attacks |
-| `smuggling` | - | HTTP smuggling |
+| `smuggling` | - | HTTP request smuggling |
 | `nginx` | - | Nginx specific attacks |
 | `php` | - | PHP specific attacks |
 | `database` | `db` | Database/SQL injection |
 | `ssrf` | - | SSRF attacks |
-| `pathbypass` | `bypass` | 🆕 Path/URL bypass techniques |
+| `pathbypass` | `bypass` | Path/URL bypass techniques |
+| `injection` | `injections` | Template, LDAP, XML injection |
+| `ratelimit` | `bruteforce`, `login` | Rate limiting tests |
+| **🆕 `protocol`** | `protocols`, `http` | HTTP/1.0, 1.1, 2 e 3 tests |
+| **🆕 `hopbyhop`** | `hbh` | Hop-by-Hop headers abuse |
+| **🆕 `cache`** | `cachepoisoning`, `cachedeception` | Cache poisoning/deception |
+| **🆕 `contamination`** | `connectioncontamination` | HTTP connection contamination |
+| **🆕 `responsesmuggling`** | `desync` | HTTP response smuggling |
+| **🆕 `h2c`** | `h2csmuggling` | H2C (HTTP/2 Cleartext) smuggling |
+| **🆕 `ssi`** | `esi`, `ssiesi` | SSI/ESI injection |
+| **🆕 `cdn`** | `cloudflare`, `cdnbypass` | CDN/Cloudflare bypass |
+| **🆕 `xslt`** | `xsltinjection` | XSLT server-side injection |
+| **🆕 `waf`** | `wafbypass`, `proxy` | WAF/Proxy bypass |
+| **🆕 `ports`** | `exposedports`, `portscan` | Exposed ports check |
 | `useragent` | - | User-Agent tests |
 | `referer` | `referer-all` | Todos os referers maliciosos |
 | `referer-spam` | `spam` | Apenas referers SPAM |
@@ -167,40 +208,109 @@ chmod +x head-test.sh
 
 ---
 
-## 🆕 Path/URL Bypass (v3.2.0)
+## 🆕 Novidades v4.1.0
 
-Nova categoria com **70+ testes** de técnicas de bypass de filtros:
+### 🌐 Testes de Protocolo HTTP
 
-### Técnicas Testadas
-
-| Técnica | Exemplo | Descrição |
-|---------|---------|-----------|
-| Null Byte Injection | `/admin.php%00.html` | Trunca extensão de arquivos |
-| HTTP Version Downgrade | `--http1.0` | Bypass via protocolo antigo |
-| Parameter Tampering | `/admin?unused=1` | Bypass de filtros de path exato |
-| Case Manipulation | `/Admin`, `/ADMIN` | Bypass de filtros case-sensitive |
-| Trailing Slash/Dot | `/admin/`, `/admin.` | Bypass de match exato |
-| Path Confusion | `/..;/admin`, `/;/admin` | Confusão de parsers |
-| Double Slashes | `//admin//` | Bypass de normalização |
-| URL Encoding | `/admin%2f`, `/%2fadmin` | Bypass com encoding |
-| Unicode Tricks | `/admin%c0%af`, `／admin` | Bypass com caracteres Unicode |
-| Random Extensions | `/admin.php`, `/admin.json` | Bypass de extensões desconhecidas |
-| Backslash/Mixed | `\admin`, `/admin\/` | Confusão de path parsers |
-| Semicolon/Space | `/admin;`, `/admin%20` | Bypass de parsers permissivos |
-| Path Fuzzing | `/%2e%2e/admin` | Encoded path traversal |
-| HTTP/HTTPS Switch | `http://` vs `https://` | Bypass de regras por protocolo |
-| Alternate Ports | `:8080`, `:8443`, `:8000` | Serviços em portas alternativas |
-| Subdomain Spoofing | `Host: admin.example.com` | Virtual host bypass |
-
-### Exemplo de uso
+Verifica suporte e segurança para diferentes versões do protocolo HTTP:
 
 ```bash
-# Executar apenas testes de path bypass
-./head-test.sh -c pathbypass https://meusite.com
-
-# Ou usando alias
-./head-test.sh -c bypass https://meusite.com
+./head-test.sh -c protocol https://meusite.com
 ```
+
+| Protocolo | Comportamento Esperado |
+|-----------|----------------------|
+| HTTP/1.0 | Deve ser bloqueado ou limitado (obsoleto) |
+| HTTP/1.1 | Deve funcionar (padrão) |
+| HTTP/2 | Deve funcionar se suportado |
+| HTTP/3 | Experimental (QUIC) |
+
+### 🔗 Hop-by-Hop Headers Abuse
+
+Testa manipulação de headers Connection para bypass de segurança:
+
+```bash
+./head-test.sh -c hopbyhop https://meusite.com
+```
+
+### 💉 Cache Poisoning / Cache Deception
+
+Testa vulnerabilidades de envenenamento de cache:
+
+```bash
+./head-test.sh -c cache https://meusite.com
+```
+
+- X-Forwarded-Host poisoning
+- Fat GET requests
+- Cache deception via path extensions
+- Response splitting
+
+### 🔀 HTTP Smuggling Avançado
+
+Múltiplas técnicas de smuggling:
+
+```bash
+./head-test.sh -c smuggling https://meusite.com      # Request smuggling
+./head-test.sh -c responsesmuggling https://meusite.com  # Response smuggling
+./head-test.sh -c h2c https://meusite.com            # H2C smuggling
+./head-test.sh -c contamination https://meusite.com  # Connection contamination
+```
+
+### 📄 SSI/ESI Injection
+
+Server-Side Includes e Edge Side Includes:
+
+```bash
+./head-test.sh -c ssi https://meusite.com
+```
+
+- `<!--#exec cmd="id"-->`
+- `<esi:include src="/admin"/>`
+- Varnish/Akamai specific tests
+
+### ☁️ CDN/Cloudflare Bypass
+
+Tentativas de descobrir IP real atrás de CDN:
+
+```bash
+./head-test.sh -c cdn https://meusite.com
+```
+
+- CF-Connecting-IP, True-Client-IP spoofing
+- Headers de debug de CDN
+- Origin discovery via Host header
+
+### 🛡️ WAF Bypass
+
+Técnicas avançadas de bypass de WAF:
+
+```bash
+./head-test.sh -c waf https://meusite.com
+```
+
+- Double/Triple URL encoding
+- UTF-8 overlong encoding
+- SQL injection bypass (comentários, tabs, newlines)
+- XSS bypass (event handlers, data URIs)
+- HTTP Parameter Pollution
+
+### 🔌 Verificação de Portas Expostas
+
+Verifica se serviços que devem estar limitados a localhost estão expostos:
+
+```bash
+./head-test.sh -c ports https://meusite.com
+```
+
+| Categoria | Portas | Serviços |
+|-----------|--------|----------|
+| Bancos de Dados | 3306, 5432, 27017, 1433, 1521 | MySQL, PostgreSQL, MongoDB, MSSQL, Oracle |
+| Cache/Queue | 6379, 11211, 5672, 15672 | Redis, Memcached, RabbitMQ |
+| Search | 9200, 9300 | Elasticsearch |
+| Container | 2375, 2376, 6443, 10250 | Docker, Kubernetes |
+| Dev | 9000, 8080, 3000, 5000 | PHP-FPM, Tomcat, Node.js, Flask |
+| Remote | 22, 3389, 5900 | SSH, RDP, VNC |
 
 ---
 
@@ -218,22 +328,28 @@ Nova categoria com **70+ testes** de técnicas de bypass de filtros:
 ./head-test.sh -o resultados.txt https://meusite.com.br
 ```
 
-### Teste verboso de uma categoria
+### Teste de protocolos HTTP
 
 ```bash
-./head-test.sh -v -c query https://meusite.com.br
+./head-test.sh -c protocol https://meusite.com.br
 ```
 
-### Teste automatizado (sem seleção de UA)
+### Teste de portas expostas
 
 ```bash
-./head-test.sh -u 1 https://meusite.com.br
+./head-test.sh -c ports https://meusite.com.br
 ```
 
-### Testar técnicas de bypass
+### Teste de cache poisoning
 
 ```bash
-./head-test.sh -c pathbypass https://meusite.com.br
+./head-test.sh -c cache https://meusite.com.br
+```
+
+### Teste de bypass de WAF
+
+```bash
+./head-test.sh -c waf https://meusite.com.br
 ```
 
 ### Múltiplas opções
@@ -251,9 +367,9 @@ Nova categoria com **70+ testes** de técnicas de bypass de filtros:
 | Símbolo | Status | Significado |
 |---------|--------|-------------|
 | ✓ PASS | Verde | Servidor bloqueou corretamente o ataque |
+| ✓ PASS (444) | Verde | Nginx fechou conexão (bloqueio efetivo) |
 | ✗ FAIL | Vermelho | Servidor NÃO bloqueou - **vulnerável!** |
 | ? WARN | Amarelo | Comportamento inesperado - investigar |
-| ! TIMEOUT | Amarelo | Requisição expirou |
 
 ### Taxa de Sucesso
 
@@ -263,28 +379,25 @@ Nova categoria com **70+ testes** de técnicas de bypass de filtros:
 | 50-79% | ⚠️ Médio - necessita melhorias |
 | 0-49% | ❌ Crítico - servidor vulnerável |
 
-### Exemplo de saída
+### Para Portas Expostas
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔓 TESTES DE PATH/URL BYPASS (70+ testes)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ── Null Byte Injection ──
-  [✓] Null Byte: admin.php%00.html            PASS (HTTP 400)
-  [✓] Null Byte: admin%00                     PASS (HTTP 400)
-  
-  ── Case Manipulation ──
-  [✓] Case: /Admin                            PASS (HTTP 404)
-  [✗] Case: /ADMIN                            FAIL (HTTP 200)
-```
+| Resultado | Significado |
+|-----------|-------------|
+| ✓ PROTEGIDA | Porta fechada/filtrada - **correto!** |
+| ✗ EXPOSTA | Porta aberta externamente - **risco!** |
 
 ---
 
 ## 🔧 Configuração do Servidor
 
-### Nginx - Proteção contra bypass
+### Nginx - Hardening Completo
 
 ```nginx
+# Bloquear HTTP/1.0
+if ($server_protocol = HTTP/1.0) {
+    return 444;
+}
+
 # Normalizar múltiplas barras
 merge_slashes on;
 
@@ -308,15 +421,60 @@ if ($request_method !~ ^(GET|HEAD|POST)$ ) {
     return 405;
 }
 
-# Case-insensitive blocking para paths sensíveis
-location ~* ^/(admin|wp-admin|phpmyadmin) {
-    deny all;
-}
+# Remover headers hop-by-hop perigosos
+proxy_set_header Upgrade "";
+proxy_set_header Connection "";
+
+# Proteção contra cache poisoning
+proxy_ignore_headers X-Forwarded-Host X-Host X-Forwarded-Server;
 ```
 
-### ModSecurity - Proteção avançada
+### Serviços - Limitação ao Localhost
 
-O script testa muitos vetores que o ModSecurity com OWASP CRS pode bloquear automaticamente.
+```bash
+# MySQL/MariaDB - /etc/mysql/my.cnf
+bind-address = 127.0.0.1
+
+# Redis - /etc/redis/redis.conf
+bind 127.0.0.1
+requirepass sua_senha_forte
+
+# PostgreSQL - /etc/postgresql/*/main/postgresql.conf
+listen_addresses = 'localhost'
+
+# MongoDB - /etc/mongod.conf
+net:
+  bindIp: 127.0.0.1
+
+# PHP-FPM - /etc/php/*/fpm/pool.d/www.conf
+listen = /run/php/php-fpm.sock  # Usar socket ao invés de porta
+```
+
+### Firewall (nftables)
+
+```bash
+#!/usr/sbin/nft -f
+table inet filter {
+    chain input {
+        type filter hook input priority 0; policy drop;
+        
+        # Permitir localhost
+        iif lo accept
+        
+        # Permitir conexões estabelecidas
+        ct state established,related accept
+        
+        # HTTP/HTTPS
+        tcp dport { 80, 443 } accept
+        
+        # SSH com rate limiting
+        tcp dport 22 ct state new limit rate 3/minute accept
+        
+        # BLOQUEAR serviços internos de acesso externo
+        tcp dport { 3306, 5432, 6379, 27017, 9200 } drop
+    }
+}
+```
 
 ---
 
@@ -324,7 +482,7 @@ O script testa muitos vetores que o ModSecurity com OWASP CRS pode bloquear auto
 
 ```
 hardening-test/
-├── head-test.sh           # Script principal
+├── head-test.sh           # Script principal (800+ testes)
 ├── README.md              # Esta documentação
 ├── LICENSE                # Licença MIT
 └── lists/                 # Listas de payloads
@@ -333,6 +491,43 @@ hardening-test/
     ├── referers-seo-blackhat.txt
     └── referers-injection.txt
 ```
+
+---
+
+## 📝 Changelog
+
+### v4.1.0 (2024-12-12)
+- 🆕 Verificação de portas expostas com netcat (45 portas)
+- 🆕 Testes de serviços sensíveis (MySQL, Redis, MongoDB, Docker, K8s)
+- 🔧 Recomendações de hardening integradas
+
+### v4.0.0 (2024-12-12)
+- 🆕 Testes de protocolo HTTP (1.0, 1.1, 2, 3)
+- 🆕 Hop-by-Hop Headers abuse (25 testes)
+- 🆕 Cache Poisoning/Deception (30 testes)
+- 🆕 HTTP Connection Contamination (20 testes)
+- 🆕 HTTP Response Smuggling/Desync (25 testes)
+- 🆕 H2C Smuggling (20 testes)
+- 🆕 SSI/ESI Injection (30 testes)
+- 🆕 CDN/Cloudflare Bypass (25 testes)
+- 🆕 XSLT Server-Side Injection (20 testes)
+- 🆕 WAF/Proxy Bypass (35 testes)
+- 🔧 Expansão para 800+ testes
+
+### v3.5.0
+- 🆕 Path/URL Bypass (70+ testes)
+- 🆕 Rate Limiting tests
+- 🆕 Injection vulnerabilities (Template, LDAP, XML)
+
+### v3.4.0
+- Adicionados testes de SSRF
+- Expandidos testes de Database attacks
+- Fake Bots detection
+
+### v3.0.0
+- Expansão para 500+ testes
+- Referers categorizados (SPAM, SEO, Injection)
+- 15 User-Agents modernos
 
 ---
 
@@ -348,44 +543,20 @@ Contribuições são bem-vindas! Por favor:
 
 ### Ideias para contribuição
 
-- [ ] Adicionar mais vetores de ataque
-- [ ] Suporte a autenticação HTTP
-- [ ] Relatório em HTML
+- [ ] Relatório em HTML/PDF
 - [ ] Integração com CI/CD
 - [ ] Testes paralelos para melhor performance
-- [ ] Suporte a proxy
-
----
-
-## 📝 Changelog
-
-### v3.2.0 (2024-12-11)
-- 🆕 Nova categoria `pathbypass` com 70+ testes de bypass
-- 🆕 Null Byte Injection tests
-- 🆕 HTTP Version Downgrade tests
-- 🆕 Parameter Tampering tests
-- 🆕 Case Manipulation tests
-- 🆕 Unicode/Encoding bypass techniques
-- 🆕 HTTP/HTTPS protocol switch tests
-- 🆕 Alternate ports scanning (8080, 8443, 8000, 3000, 9000)
-- 🆕 Subdomain spoofing via Host header
-
-### v3.1.0
-- Adicionados testes de SSRF
-- Expandidos testes de Database attacks
-- Adicionados Fake Bots detection
-
-### v3.0.0
-- Expansão para 500+ testes
-- Referers categorizados (SPAM, SEO, Injection)
-- Testes específicos para Nginx, PHP, Database
-- 15 User-Agents modernos
+- [ ] Suporte a proxy/SOCKS
+- [ ] Integração com Nuclei templates
+- [ ] API REST para automação
 
 ---
 
 ## ⚠️ Aviso Legal
 
 Esta ferramenta é destinada **apenas para testes autorizados**. Use apenas em sistemas que você possui ou tem permissão explícita para testar. O uso não autorizado pode ser ilegal.
+
+**O autor não se responsabiliza pelo uso indevido desta ferramenta.**
 
 ---
 
