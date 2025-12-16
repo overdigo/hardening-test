@@ -1,7 +1,7 @@
 # 🛡️ HTTP Header Security Testing Suite
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.0.1-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
   <img src="https://img.shields.io/badge/tests-1200%2B-brightgreen.svg" alt="Tests">
@@ -21,7 +21,7 @@
 - [Instalação](#-instalação)
 - [Uso](#-uso)
 - [Categorias de Testes](#-categorias-de-testes)
-- [Novidades v5.0.0](#-novidades-v500)
+- [Novidades v5.0.1](#-novidades-v501)
 - [Exemplos](#-exemplos)
 - [Interpretando Resultados](#-interpretando-resultados)
 - [Configuração do Servidor](#-configuração-do-servidor)
@@ -553,6 +553,17 @@ hardening-test/
 ---
 
 ## 📝 Changelog
+
+### v5.0.1 (2024-12-16)
+- 🔧 **Correção SSL/TLS**: Testes de protocolo agora usam `curl` com flags coretas
+  - TLS 1.0/1.1 rejeitados pelo servidor são corretamente identificados como BLOQUEADOS
+- 🔧 **Correção Cipher Suites**: Força TLS 1.2 para evitar falsos positivos
+  - Ciphers fracos não mais aparecem como "vulneráveis" quando TLS 1.3 negocia automaticamente
+- 🔧 **Correção Curvas ECDH**: Verifica a curva realmente usada pelo servidor
+  - Curvas fracas são corretamente identificadas como BLOQUEADAS quando servidor usa curva mais forte
+- 🆕 **Atalhos nas Seções**: Cada seção de teste agora mostra o atalho `-c`
+  - Exemplo: `🔒 TESTES DE SEGURANÇA SSL/TLS (-c ssl)`
+  - Facilita encontrar o comando para executar teste específico
 
 ### v5.0.0 (2024-12-16)
 - 🆕 **403 Bypass Tests** (100+ testes de bypass para erro 403)

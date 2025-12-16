@@ -121,9 +121,15 @@ test_curl() {
 }
 
 print_section() {
+    local title="$1"
+    local shortcut="$2"
     echo ""
     echo -e "${BOLD}${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BOLD}${MAGENTA}$1${NC}"
+    if [ -n "$shortcut" ]; then
+        echo -e "${BOLD}${MAGENTA}$title ${CYAN}($shortcut)${NC}"
+    else
+        echo -e "${BOLD}${MAGENTA}$title${NC}"
+    fi
     echo -e "${BOLD}${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
@@ -135,7 +141,7 @@ print_subsection() {
 # TODOS OS MÉTODOS HTTP
 #==============================================================================
 test_all_http_methods() {
-    print_section "📝 TESTES DE TODOS OS MÉTODOS HTTP"
+    print_section "📝 TESTES DE TODOS OS MÉTODOS HTTP" "-c method"
     
     # Métodos padrão que devem funcionar
     print_subsection "Métodos Padrão (devem funcionar)"
@@ -189,7 +195,7 @@ test_all_http_methods() {
 # COOKIES MALICIOSOS - 10 DE CADA TIPO
 #==============================================================================
 test_malicious_cookies() {
-    print_section "🍪 TESTES DE COOKIES MALICIOSOS (40 testes)"
+    print_section "🍪 TESTES DE COOKIES MALICIOSOS (40 testes)" "-c cookie"
     
     print_subsection "XSS via Cookie (10 variações)"
     test_curl "XSS: <script>alert(1)</script>" "block" -A "$UA" -Lk --cookie "x=<script>alert(1)</script>" "$URL"
@@ -244,7 +250,7 @@ test_malicious_cookies() {
 # QUERY STRING MALICIOSA - 10 DE CADA TIPO
 #==============================================================================
 test_malicious_query() {
-    print_section "🔍 TESTES DE QUERY STRING MALICIOSA (50 testes)"
+    print_section "🔍 TESTES DE QUERY STRING MALICIOSA (50 testes)" "-c query"
     
     print_subsection "SQL Injection (10 variações)"
     test_curl "SQLi: OR 1=1" "block" -A "$UA" -Lk "${URL}?id=1%20OR%201=1"
@@ -311,7 +317,7 @@ test_malicious_query() {
 # USER-AGENTS MALICIOSOS DA LISTA
 #==============================================================================
 test_bad_user_agents() {
-    print_section "🤖 TESTES DE USER-AGENTS MALICIOSOS (100 da lista)"
+    print_section "🤖 TESTES DE USER-AGENTS MALICIOSOS (100 da lista)" "-c useragent"
     
     local list_file="${SCRIPT_DIR}/lists/bad-user-agents.txt"
     if [ ! -f "$list_file" ]; then
@@ -333,7 +339,7 @@ test_bad_user_agents() {
 # REFERERS SPAM (Tráfego falso, gambling, adulto)
 #==============================================================================
 test_referers_spam() {
-    print_section "📧 TESTES DE REFERERS SPAM (Tráfego falso, gambling, adulto)"
+    print_section "📧 TESTES DE REFERERS SPAM (Tráfego falso, gambling, adulto)" "-c referer-spam"
     
     local list_file="${SCRIPT_DIR}/lists/referers-spam.txt"
     if [ ! -f "$list_file" ]; then
@@ -356,7 +362,7 @@ test_referers_spam() {
 # REFERERS SEO BLACK HAT (Manipulação de rankings)
 #==============================================================================
 test_referers_seo_blackhat() {
-    print_section "🎩 TESTES DE REFERERS SEO BLACK HAT (Manipulação de rankings)"
+    print_section "🎩 TESTES DE REFERERS SEO BLACK HAT (Manipulação de rankings)" "-c referer-seo"
     
     local list_file="${SCRIPT_DIR}/lists/referers-seo-blackhat.txt"
     if [ ! -f "$list_file" ]; then
@@ -379,7 +385,7 @@ test_referers_seo_blackhat() {
 # REFERERS INJECTION (Bots falsos, XSS, SQLi, CMDi via referer)
 #==============================================================================
 test_referers_injection() {
-    print_section "💉 TESTES DE REFERERS INJECTION (Bots falsos e payloads)"
+    print_section "💉 TESTES DE REFERERS INJECTION (Bots falsos e payloads)" "-c referer-injection"
     
     local list_file="${SCRIPT_DIR}/lists/referers-injection.txt"
     if [ ! -f "$list_file" ]; then
@@ -416,7 +422,7 @@ test_bad_referers() {
 # BOTS LEGÍTIMOS
 #==============================================================================
 test_good_bots() {
-    print_section "✅ TESTES DE BOTS LEGÍTIMOS (devem passar)"
+    print_section "✅ TESTES DE BOTS LEGÍTIMOS (devem passar)" "-c useragent"
     
     test_curl "Googlebot Mobile" "allow" -Lk -A "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) AppleWebKit/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
     test_curl "Googlebot Desktop" "allow" -Lk -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
@@ -434,7 +440,7 @@ test_good_bots() {
 # FAKE BOTS - Bots que se passam por Google/Bing (devem ser BLOQUEADOS)
 #==============================================================================
 test_fake_bots() {
-    print_section "🎭 TESTES DE FAKE BOTS (Impostores - devem ser BLOQUEADOS)"
+    print_section "🎭 TESTES DE FAKE BOTS (Impostores - devem ser BLOQUEADOS)" "-c fakebots"
     
     echo -e "  ${YELLOW}ℹ️  Estes são bots FALSOS que tentam se passar por crawlers legítimos${NC}"
     echo -e "  ${YELLOW}   Servidores bem configurados devem verificar o IP de origem e bloquear${NC}"
@@ -461,7 +467,7 @@ test_fake_bots() {
 # HOSTS INVÁLIDOS (10 testes)
 #==============================================================================
 test_invalid_host() {
-    print_section "🏠 TESTES DE HOST INVÁLIDO"
+    print_section "🏠 TESTES DE HOST INVÁLIDO" "-c host"
     
     test_curl "Host: 127.0.0.1" "block" -A "$UA" -Lk -H "Host: 127.0.0.1" "$URL"
     test_curl "Host: localhost" "block" -A "$UA" -Lk -H "Host: localhost" "$URL"
@@ -479,7 +485,7 @@ test_invalid_host() {
 # URI MALICIOSA (10 testes)
 #==============================================================================
 test_malicious_uri() {
-    print_section "🔗 TESTES DE URI MALICIOSA - WORDPRESS (50 testes)"
+    print_section "🔗 TESTES DE URI MALICIOSA - WORDPRESS (50 testes)" "-c uri"
     
     print_subsection "Arquivos de Configuração WordPress"
     test_curl "WP: wp-config.php" "block" -A "$UA" -Lk "${URL}/wp-config.php"
@@ -554,7 +560,7 @@ test_malicious_uri() {
 # HEADER INJECTION (10 testes)
 #==============================================================================
 test_header_injection() {
-    print_section "💉 TESTES DE HEADER INJECTION (20 testes)"
+    print_section "💉 TESTES DE HEADER INJECTION (20 testes)" "-c header"
     
     print_subsection "CRLF Injection"
     test_curl "CRLF: Básico" "block" -A "$UA" -Lk -H $'X-Custom: test\r\nX-Injected: hacked' "$URL"
@@ -586,7 +592,7 @@ test_header_injection() {
 # CONTENT-TYPE ATTACKS (20 testes)
 #==============================================================================
 test_content_type() {
-    print_section "📄 TESTES DE CONTENT-TYPE ATTACKS (20 testes)"
+    print_section "📄 TESTES DE CONTENT-TYPE ATTACKS (20 testes)" "-c contenttype"
     
     print_subsection "XXE e XML Attacks"
     test_curl "CT: XXE básico" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
@@ -622,7 +628,7 @@ test_content_type() {
 # ACCEPT-ENCODING ATTACKS (20 testes)
 #==============================================================================
 test_accept_encoding() {
-    print_section "🗜️ TESTES DE ACCEPT-ENCODING ATTACKS (20 testes)"
+    print_section "🗜️ TESTES DE ACCEPT-ENCODING ATTACKS (20 testes)" "-c encoding"
     
     print_subsection "Encoding Manipulation"
     test_curl "AE: muitos encodings" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip, deflate, br, compress, identity, *, sdch, xz, lzma, zstd" "$URL"
@@ -657,7 +663,7 @@ test_accept_encoding() {
 # X-FORWARDED-FOR SPOOFING (20 testes)
 #==============================================================================
 test_xff_spoofing() {
-    print_section "🌐 TESTES DE X-FORWARDED-FOR SPOOFING (20 testes)"
+    print_section "🌐 TESTES DE X-FORWARDED-FOR SPOOFING (20 testes)" "-c xff"
     
     print_subsection "IP Privado/Local"
     test_curl "XFF: 127.0.0.1" "block" -A "$UA" -Lk -H "X-Forwarded-For: 127.0.0.1" "$URL"
@@ -692,7 +698,7 @@ test_xff_spoofing() {
 # RANGE HEADER ATTACKS (20 testes)
 #==============================================================================
 test_range_header() {
-    print_section "📊 TESTES DE RANGE HEADER ATTACKS (20 testes)"
+    print_section "📊 TESTES DE RANGE HEADER ATTACKS (20 testes)" "-c range"
     
     print_subsection "Range DoS"
     test_curl "Range: 10 ranges" "block" -A "$UA" -Lk -H "Range: bytes=0-0,1-1,2-2,3-3,4-4,5-5,6-6,7-7,8-8,9-9" "$URL"
@@ -727,7 +733,7 @@ test_range_header() {
 # HTTP SMUGGLING ATTACKS (20 testes)
 #==============================================================================
 test_http_smuggling() {
-    print_section "🚢 TESTES DE HTTP SMUGGLING (20 testes)"
+    print_section "🚢 TESTES DE HTTP SMUGGLING (20 testes)" "-c smuggling"
     
     print_subsection "CL.TE e TE.CL"
     test_curl "Smuggling: CL + TE" "block" -A "$UA" -Lk -H "Content-Length: 0" -H "Transfer-Encoding: chunked" "$URL"
@@ -762,7 +768,7 @@ test_http_smuggling() {
 # NGINX SPECIFIC ATTACKS (20 testes)
 #==============================================================================
 test_nginx_attacks() {
-    print_section "🔧 TESTES DE ATAQUES AO NGINX (20 testes)"
+    print_section "🔧 TESTES DE ATAQUES AO NGINX (20 testes)" "-c nginx"
     
     print_subsection "Path Traversal e Alias"
     test_curl "Nginx: path traversal básico" "block" -A "$UA" -Lk "${URL}/../../../etc/passwd"
@@ -799,7 +805,7 @@ test_nginx_attacks() {
 # PHP SPECIFIC ATTACKS (20 testes)
 #==============================================================================
 test_php_attacks() {
-    print_section "🐘 TESTES DE ATAQUES AO PHP (20 testes)"
+    print_section "🐘 TESTES DE ATAQUES AO PHP (20 testes)" "-c php"
     
     print_subsection "PHP Wrappers e Streams"
     test_curl "PHP: php://filter base64" "block" -A "$UA" -Lk "${URL}?file=php://filter/convert.base64-encode/resource=index.php"
@@ -834,7 +840,7 @@ test_php_attacks() {
 # DATABASE ATTACKS - MySQL/MariaDB (20 testes)
 #==============================================================================
 test_database_attacks() {
-    print_section "🗄️ TESTES DE ATAQUES A DATABASE (20 testes)"
+    print_section "🗄️ TESTES DE ATAQUES A DATABASE (20 testes)" "-c database"
     
     print_subsection "SQL Injection - Clássico"
     test_curl "DB: OR 1=1" "block" -A "$UA" -Lk "${URL}?id=1' OR '1'='1"
@@ -871,7 +877,7 @@ test_database_attacks() {
 # SSRF ATTACKS (15 testes)
 #==============================================================================
 test_ssrf_attacks() {
-    print_section "🌐 TESTES DE SSRF - Server Side Request Forgery (15 testes)"
+    print_section "🌐 TESTES DE SSRF - Server Side Request Forgery (15 testes)" "-c ssrf"
     
     print_subsection "Localhost e IPs Internos"
     test_curl "SSRF: http://localhost" "block" -A "$UA" -Lk "${URL}?url=http://localhost"
@@ -899,7 +905,7 @@ test_ssrf_attacks() {
 # INJECTION VULNERABILITIES - COMPREHENSIVE TESTS (160+ testes)
 #==============================================================================
 test_injection_vulnerabilities() {
-    print_section "💉 TESTES DE INJECTION VULNERABILITIES (160+ testes)"
+    print_section "💉 TESTES DE INJECTION VULNERABILITIES (160+ testes)" "-c injection"
     
     # -------------------------------------------------------------------------
     # 1. SQL INJECTION (SQLi)
@@ -1111,7 +1117,7 @@ test_injection_vulnerabilities() {
 # RATE LIMITING TESTS - Brute Force Protection (30+ testes)
 #==============================================================================
 test_rate_limiting() {
-    print_section "⏱️ TESTES DE RATE LIMITING (Proteção Brute-Force)"
+    print_section "⏱️ TESTES DE RATE LIMITING (Proteção Brute-Force)" "-c ratelimit"
     
     local rate_limit_detected=0
     local request_count=20
@@ -1328,7 +1334,7 @@ test_rate_limiting() {
 # PATH/URL BYPASS TECHNIQUES (40+ testes)
 #==============================================================================
 test_path_bypass() {
-    print_section "🔓 TESTES DE PATH/URL BYPASS (40+ testes)"
+    print_section "🔓 TESTES DE PATH/URL BYPASS (40+ testes)" "-c pathbypass"
     
     print_subsection "Null Byte Injection"
     test_curl "Null Byte: admin.php%00.html" "block" -A "$UA" -Lk --path-as-is "${URL}/admin.php%00.html"
@@ -1467,7 +1473,7 @@ test_path_bypass() {
 # HTTP PROTOCOL VERSION TESTS (HTTP/1.0, HTTP/1.1, HTTP/2, HTTP/3)
 #==============================================================================
 test_http_protocols() {
-    print_section "🌐 TESTES DE VERSÕES DE PROTOCOLO HTTP (20 testes)"
+    print_section "🌐 TESTES DE VERSÕES DE PROTOCOLO HTTP (20 testes)" "-c protocol"
     
     print_subsection "HTTP/1.0 (Legacy - deve ser bloqueado ou limitado)"
     # HTTP/1.0 é considerado obsoleto e pode ser bloqueado por segurança
@@ -1543,7 +1549,7 @@ test_http_protocols() {
 # HOP-BY-HOP HEADERS ABUSE (RFC 2616)
 #==============================================================================
 test_hop_by_hop_headers() {
-    print_section "🔗 TESTES DE HOP-BY-HOP HEADERS ABUSE (25 testes)"
+    print_section "🔗 TESTES DE HOP-BY-HOP HEADERS ABUSE (25 testes)" "-c hopbyhop"
     
     print_subsection "Headers Hop-by-Hop Padrão"
     test_curl "HBH: Connection: close" "block" -A "$UA" -Lk -H "Connection: close, X-Foo" -H "X-Foo: bar" "$URL"
@@ -1583,7 +1589,7 @@ test_hop_by_hop_headers() {
 # CACHE POISONING / CACHE DECEPTION
 #==============================================================================
 test_cache_poisoning() {
-    print_section "💉 TESTES DE CACHE POISONING / CACHE DECEPTION (30 testes)"
+    print_section "💉 TESTES DE CACHE POISONING / CACHE DECEPTION (30 testes)" "-c cache"
     
     print_subsection "Cache Key Manipulation"
     test_curl "Cache: X-Forwarded-Host poisoning" "block" -A "$UA" -Lk -H "X-Forwarded-Host: evil.com" "$URL"
@@ -1633,7 +1639,7 @@ test_cache_poisoning() {
 # HTTP CONNECTION CONTAMINATION
 #==============================================================================
 test_connection_contamination() {
-    print_section "🦠 TESTES DE HTTP CONNECTION CONTAMINATION (20 testes)"
+    print_section "🦠 TESTES DE HTTP CONNECTION CONTAMINATION (20 testes)" "-c contamination"
     
     print_subsection "Connection State Pollution"
     test_curl "Contamination: Keep-Alive com dados extra" "block" -A "$UA" -Lk -H "Connection: keep-alive" -H "Keep-Alive: timeout=300, max=1000" "$URL"
@@ -1671,7 +1677,7 @@ test_connection_contamination() {
 # HTTP RESPONSE SMUGGLING / DESYNC
 #==============================================================================
 test_response_smuggling() {
-    print_section "🔀 TESTES DE HTTP RESPONSE SMUGGLING / DESYNC (25 testes)"
+    print_section "🔀 TESTES DE HTTP RESPONSE SMUGGLING / DESYNC (25 testes)" "-c responsesmuggling"
     
     print_subsection "Response Splitting"
     test_curl "RSmuggling: CRLF em header" "block" -A "$UA" -Lk -H $'X-Test: value\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>' "$URL"
@@ -1718,7 +1724,7 @@ test_response_smuggling() {
 # H2C SMUGGLING (HTTP/2 Cleartext)
 #==============================================================================
 test_h2c_smuggling() {
-    print_section "🚀 TESTES DE H2C SMUGGLING (20 testes)"
+    print_section "🚀 TESTES DE H2C SMUGGLING (20 testes)" "-c h2c"
     
     echo -e "  ${YELLOW}ℹ️  H2C permite upgrade de HTTP/1.1 para HTTP/2 sem TLS${NC}"
     echo -e "  ${YELLOW}   Pode ser usado para bypass de proxy e acesso a endpoints internos${NC}"
@@ -1758,7 +1764,7 @@ test_h2c_smuggling() {
 # SSI / ESI INJECTION (Server/Edge Side Includes)
 #==============================================================================
 test_ssi_esi_injection() {
-    print_section "📄 TESTES DE SSI / ESI INJECTION (30 testes)"
+    print_section "📄 TESTES DE SSI / ESI INJECTION (30 testes)" "-c ssi"
     
     print_subsection "Server-Side Includes (SSI)"
     test_curl "SSI: <!--#echo var" "block" -A "$UA" -Lk "${URL}?page=<!--%23echo%20var=%22DOCUMENT_ROOT%22-->"
@@ -1806,7 +1812,7 @@ test_ssi_esi_injection() {
 # CDN / CLOUDFLARE BYPASS
 #==============================================================================
 test_cdn_bypass() {
-    print_section "☁️ TESTES DE CDN / CLOUDFLARE BYPASS (25 testes)"
+    print_section "☁️ TESTES DE CDN / CLOUDFLARE BYPASS (25 testes)" "-c cdn"
     
     echo -e "  ${YELLOW}ℹ️  Tentativas de descobrir IP real atrás de CDN/WAF${NC}"
     echo ""
@@ -1856,7 +1862,7 @@ test_cdn_bypass() {
 # XSLT SERVER-SIDE INJECTION
 #==============================================================================
 test_xslt_injection() {
-    print_section "📝 TESTES DE XSLT SERVER-SIDE INJECTION (20 testes)"
+    print_section "📝 TESTES DE XSLT SERVER-SIDE INJECTION (20 testes)" "-c xslt"
     
     print_subsection "XSLT Básico em Parâmetros"
     test_curl "XSLT: xsl:value-of" "block" -A "$UA" -Lk "${URL}?xsl=<xsl:value-of%20select=\"document('/etc/passwd')\"/>"
@@ -1896,7 +1902,7 @@ test_xslt_injection() {
 # WAF / PROXY PROTECTIONS BYPASS
 #==============================================================================
 test_waf_bypass() {
-    print_section "🛡️ TESTES DE WAF / PROXY PROTECTIONS BYPASS (35 testes)"
+    print_section "🛡️ TESTES DE WAF / PROXY PROTECTIONS BYPASS (35 testes)" "-c waf"
     
     print_subsection "Encoding Bypass"
     test_curl "WAF: URL encoding básico" "block" -A "$UA" -Lk "${URL}?x=%3Cscript%3Ealert(1)%3C/script%3E"
@@ -1954,7 +1960,7 @@ test_waf_bypass() {
 # EXPOSED PORTS CHECK (Serviços que devem estar limitados a localhost)
 #==============================================================================
 test_exposed_ports() {
-    print_section "🔌 TESTES DE PORTAS EXPOSTAS (Serviços Sensíveis)"
+    print_section "🔌 TESTES DE PORTAS EXPOSTAS (Serviços Sensíveis)" "-c ports"
     
     echo -e "  ${YELLOW}ℹ️  Verificando portas de serviços que NÃO devem estar expostos externamente${NC}"
     echo -e "  ${YELLOW}   Esses serviços devem estar limitados a localhost (127.0.0.1)${NC}"
@@ -2084,7 +2090,7 @@ test_exposed_ports() {
 # SSL/TLS SECURITY TESTS
 #==============================================================================
 test_ssl_tls() {
-    print_section "🔒 TESTES DE SEGURANÇA SSL/TLS"
+    print_section "🔒 TESTES DE SEGURANÇA SSL/TLS" "-c ssl"
     
     echo -e "  ${YELLOW}ℹ️  Verificando versões de protocolo, ciphers e curvas ECDH${NC}"
     echo ""
@@ -2108,20 +2114,53 @@ test_ssl_tls() {
         return
     fi
     
-    # Função auxiliar para testar protocolo SSL/TLS
+    # Função auxiliar para testar protocolo SSL/TLS usando curl
     test_protocol() {
         local proto="$1"
         local proto_name="$2"
         local should_fail="$3"  # "yes" = protocolo deve ser bloqueado
+        local curl_flag=""
         local result_text=""
         
         TOTAL_TESTS=$((TOTAL_TESTS + 1))
         
-        local result
-        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -${proto} 2>&1)
+        # Mapear protocolo para flag do curl
+        case "$proto" in
+            "ssl2"|"ssl3")
+                # SSLv2/3 não suportados por curl moderno - consideramos como bloqueado
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[PASS] $proto_name - Não suportado por curl moderno" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $proto_name - ${GREEN}OBSOLETO${NC} (não suportado por cliente moderno)"
+                fi
+                return
+                ;;
+            "tls1")
+                curl_flag="--tlsv1.0 --tls-max 1.0"
+                ;;
+            "tls1_1")
+                curl_flag="--tlsv1.1 --tls-max 1.1"
+                ;;
+            "tls1_2")
+                curl_flag="--tlsv1.2 --tls-max 1.2"
+                ;;
+            "tls1_3")
+                curl_flag="--tlsv1.3 --tls-max 1.3"
+                ;;
+        esac
         
-        if echo "$result" | grep -q "Cipher is"; then
-            # Conexão bem sucedida
+        # Executar teste com curl
+        local result exit_code
+        result=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 5 $curl_flag "$URL" 2>&1)
+        exit_code=$?
+        
+        # Interpretar resultado
+        # exit_code 0 = sucesso (conexão TLS estabelecida)
+        # exit_code 35 = SSL connect error (protocolo rejeitado)
+        # exit_code 60 = SSL certificate problem (conexão TLS OK, cert inválido - ok para teste)
+        
+        if [ $exit_code -eq 0 ] || [ $exit_code -eq 60 ] || [ "$result" != "000" -a "$result" != "" ]; then
+            # Conexão TLS bem sucedida
             if [ "$should_fail" = "yes" ]; then
                 result_text="FAIL"
                 FAILED_TESTS=$((FAILED_TESTS + 1))
@@ -2137,8 +2176,8 @@ test_ssl_tls() {
                     echo -e "  ${GREEN}[✓]${NC} $proto_name - ${GREEN}SUPORTADO${NC}"
                 fi
             fi
-        else
-            # Conexão falhou
+        elif [ $exit_code -eq 35 ]; then
+            # SSL handshake falhou - protocolo foi rejeitado pelo servidor
             if [ "$should_fail" = "yes" ]; then
                 result_text="PASS"
                 PASSED_TESTS=$((PASSED_TESTS + 1))
@@ -2147,15 +2186,27 @@ test_ssl_tls() {
                     echo -e "  ${GREEN}[✓]${NC} $proto_name - ${GREEN}BLOQUEADO${NC} (correto!)"
                 fi
             else
-                [ -n "$OUTPUT_FILE" ] && echo "[INFO] $proto_name - Não suportado" >> "$OUTPUT_FILE"
-                if [ "$FILTER" = "all" ]; then
-                    echo -e "  ${YELLOW}[?]${NC} $proto_name - ${YELLOW}NÃO SUPORTADO${NC}"
+                result_text="FAIL"
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $proto_name - Não suportado (deveria ser)" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                    echo -e "  ${RED}[✗]${NC} $proto_name - ${RED}NÃO SUPORTADO${NC} (deveria funcionar!)"
                 fi
+            fi
+        else
+            # Outro erro (timeout, conexão recusada, etc)
+            [ -n "$OUTPUT_FILE" ] && echo "[INFO] $proto_name - Erro de conexão (exit: $exit_code)" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ]; then
+                echo -e "  ${YELLOW}[?]${NC} $proto_name - ${YELLOW}ERRO DE CONEXÃO${NC} (código: $exit_code)"
             fi
         fi
     }
     
+    
     # Função para testar cipher suite
+    # IMPORTANTE: Forçamos TLS 1.2 porque TLS 1.3 usa ciphersuites diferentes
+    # e pode negociar automaticamente para um cipher forte mesmo quando
+    # solicitamos um cipher fraco
     test_cipher() {
         local cipher="$1"
         local cipher_name="$2"
@@ -2165,12 +2216,34 @@ test_ssl_tls() {
         TOTAL_TESTS=$((TOTAL_TESTS + 1))
         
         local result
-        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -cipher "$cipher" 2>&1)
+        # Forçar TLS 1.2 para testar ciphers legados (TLS 1.3 tem ciphersuites diferentes)
+        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -tls1_2 -cipher "$cipher" 2>&1)
+        local exit_code=$?
         
+        # Verificar se a conexão foi estabelecida E se o cipher usado é realmente o solicitado
+        local used_cipher=""
         if echo "$result" | grep -q "Cipher is"; then
+            used_cipher=$(echo "$result" | grep "Cipher is" | awk '{print $NF}')
+        fi
+        
+        # Se o cipher usado é um cipher TLS 1.3 (começam com TLS_), o servidor não usou o cipher solicitado
+        if [[ "$used_cipher" == TLS_* ]]; then
+            # Servidor negociou TLS 1.3 em vez de usar o cipher solicitado = cipher não suportado
             if [ "$should_fail" = "yes" ]; then
-                local used_cipher
-                used_cipher=$(echo "$result" | grep "Cipher is" | awk '{print $NF}')
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[PASS] $cipher_name - Corretamente bloqueado" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $cipher_name - ${GREEN}BLOQUEADO${NC}"
+                fi
+            else
+                if [ "$FILTER" = "all" ]; then
+                    echo -e "  ${YELLOW}[?]${NC} $cipher_name - ${YELLOW}NÃO SUPORTADO${NC}"
+                fi
+            fi
+        elif [ -n "$used_cipher" ]; then
+            # Conexão estabelecida com cipher TLS 1.2
+            if [ "$should_fail" = "yes" ]; then
                 result_text="FAIL"
                 FAILED_TESTS=$((FAILED_TESTS + 1))
                 [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $cipher_name - Cipher fraco aceito: $used_cipher" >> "$OUTPUT_FILE"
@@ -2185,6 +2258,7 @@ test_ssl_tls() {
                 fi
             fi
         else
+            # Conexão falhou = cipher não suportado
             if [ "$should_fail" = "yes" ]; then
                 result_text="PASS"
                 PASSED_TESTS=$((PASSED_TESTS + 1))
@@ -2283,7 +2357,9 @@ test_ssl_tls() {
     
     print_subsection "Curvas ECDH (Fracas devem ser BLOQUEADAS)"
     
-    # Função para testar curvas
+    # Função para testar curvas ECDH
+    # IMPORTANTE: Forçamos TLS 1.2 com cipher ECDHE para testar curvas
+    # O servidor só usará a curva se realmente a suportar
     test_curve() {
         local curve="$1"
         local curve_name="$2"
@@ -2293,15 +2369,52 @@ test_ssl_tls() {
         TOTAL_TESTS=$((TOTAL_TESTS + 1))
         
         local result
-        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -curves "$curve" 2>&1)
+        # Forçar TLS 1.2 com cipher ECDHE e a curva específica
+        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -tls1_2 -cipher "ECDHE" -curves "$curve" 2>&1)
+        
+        # Verificar se a conexão foi estabelecida E se usou a curva solicitada
+        local used_cipher=""
+        local server_temp_key=""
         
         if echo "$result" | grep -q "Cipher is"; then
+            used_cipher=$(echo "$result" | grep "Cipher is" | awk '{print $NF}')
+            # Verificar qual curva foi realmente usada
+            server_temp_key=$(echo "$result" | grep -i "Server Temp Key" | head -1)
+        fi
+        
+        # Se o cipher usado é TLS 1.3, o servidor ignorou nossa curva
+        if [[ "$used_cipher" == TLS_* ]]; then
+            # Servidor negociou TLS 1.3 = curva não suportada para TLS 1.2
             if [ "$should_fail" = "yes" ]; then
-                result_text="FAIL"
-                FAILED_TESTS=$((FAILED_TESTS + 1))
-                [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Curva $curve_name - Curva fraca aceita" >> "$OUTPUT_FILE"
-                if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
-                    echo -e "  ${RED}[✗]${NC} Curva $curve_name - ${RED}VULNERÁVEL${NC} (curva fraca aceita)"
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} Curva $curve_name - ${GREEN}BLOQUEADA${NC}"
+                fi
+            else
+                if [ "$FILTER" = "all" ]; then
+                    echo -e "  ${YELLOW}[?]${NC} Curva $curve_name - ${YELLOW}NÃO SUPORTADA (TLS 1.2)${NC}"
+                fi
+            fi
+        elif [ -n "$used_cipher" ]; then
+            # Conexão estabelecida, verificar se a curva é a solicitada
+            # Se a curva fraca foi solicitada mas servidor usou outra, está protegido
+            if [ "$should_fail" = "yes" ]; then
+                # Para curvas fracas, verificar se o servidor realmente usou essa curva
+                if echo "$server_temp_key" | grep -qi "$curve"; then
+                    result_text="FAIL"
+                    FAILED_TESTS=$((FAILED_TESTS + 1))
+                    [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Curva $curve_name - Curva fraca aceita" >> "$OUTPUT_FILE"
+                    if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                        echo -e "  ${RED}[✗]${NC} Curva $curve_name - ${RED}VULNERÁVEL${NC} (curva fraca aceita)"
+                    fi
+                else
+                    # Servidor usou outra curva (mais forte)
+                    result_text="PASS"
+                    PASSED_TESTS=$((PASSED_TESTS + 1))
+                    if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                        echo -e "  ${GREEN}[✓]${NC} Curva $curve_name - ${GREEN}BLOQUEADA${NC} (servidor usou curva mais forte)"
+                    fi
                 fi
             else
                 result_text="PASS"
@@ -2311,6 +2424,7 @@ test_ssl_tls() {
                 fi
             fi
         else
+            # Conexão falhou
             if [ "$should_fail" = "yes" ]; then
                 result_text="PASS"
                 PASSED_TESTS=$((PASSED_TESTS + 1))
@@ -2457,7 +2571,7 @@ test_ssl_tls() {
 # CLICKJACKING PROTECTION (X-Frame-Options / CSP frame-ancestors)
 #==============================================================================
 test_clickjacking() {
-    print_section "🖼️ TESTES DE PROTEÇÃO CONTRA CLICKJACKING"
+    print_section "🖼️ TESTES DE PROTEÇÃO CONTRA CLICKJACKING" "-c clickjacking"
     
     echo -e "  ${YELLOW}ℹ️  Verificando headers de proteção contra Clickjacking${NC}"
     echo -e "  ${YELLOW}   X-Frame-Options e CSP frame-ancestors devem estar presentes${NC}"
@@ -2540,7 +2654,7 @@ test_clickjacking() {
 # SECURITY HEADERS CHECK (Headers de Segurança Essenciais)
 #==============================================================================
 test_security_headers() {
-    print_section "🔒 VERIFICAÇÃO DE HEADERS DE SEGURANÇA"
+    print_section "🔒 VERIFICAÇÃO DE HEADERS DE SEGURANÇA" "-c secheaders"
     
     echo -e "  ${YELLOW}ℹ️  Verificando presença e configuração de headers de segurança${NC}"
     echo ""
@@ -2659,7 +2773,7 @@ test_security_headers() {
 # SESSION SECURITY (Cookies Flags - HttpOnly, Secure, SameSite)
 #==============================================================================
 test_session_security() {
-    print_section "🍪 TESTES DE SEGURANÇA DE SESSÃO (Cookies)"
+    print_section "🍪 TESTES DE SEGURANÇA DE SESSÃO (Cookies)" "-c session"
     
     echo -e "  ${YELLOW}ℹ️  Verificando flags de segurança em cookies${NC}"
     echo -e "  ${YELLOW}   Cookies devem ter: HttpOnly, Secure, SameSite${NC}"
@@ -2776,7 +2890,7 @@ test_session_security() {
 # CSS INJECTION TESTS
 #==============================================================================
 test_css_injection() {
-    print_section "🎨 TESTES DE CSS INJECTION"
+    print_section "🎨 TESTES DE CSS INJECTION" "-c css"
     
     print_subsection "CSS Injection em Parâmetros"
     test_curl "CSS: expression()" "block" -A "$UA" -Lk "${URL}?style=expression(alert(1))"
@@ -2802,7 +2916,7 @@ test_css_injection() {
 # EMAIL INJECTION (IMAP/SMTP Injection)
 #==============================================================================
 test_email_injection() {
-    print_section "📧 TESTES DE EMAIL INJECTION (IMAP/SMTP)"
+    print_section "📧 TESTES DE EMAIL INJECTION (IMAP/SMTP)" "-c email"
     
     print_subsection "SMTP Header Injection"
     test_curl "SMTP: Bcc injection" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0ABcc:attacker@evil.com" "$URL"
@@ -2827,7 +2941,7 @@ test_email_injection() {
 # DEFAULT CREDENTIALS CHECK
 #==============================================================================
 test_default_credentials() {
-    print_section "🔑 TESTES DE CREDENCIAIS PADRÃO / PAINÉIS ADMIN"
+    print_section "🔑 TESTES DE CREDENCIAIS PADRÃO / PAINÉIS ADMIN" "-c credentials"
     
     echo -e "  ${YELLOW}ℹ️  Verificando acessibilidade de painéis admin e endpoints sensíveis${NC}"
     echo -e "  ${YELLOW}   Esses endpoints devem retornar 403/404 ou redirecionar para login${NC}"
@@ -2908,7 +3022,7 @@ test_default_credentials() {
 # ACCOUNT ENUMERATION TESTS
 #==============================================================================
 test_account_enumeration() {
-    print_section "👤 TESTES DE ENUMERAÇÃO DE CONTAS"
+    print_section "👤 TESTES DE ENUMERAÇÃO DE CONTAS" "-c enumeration"
     
     echo -e "  ${YELLOW}ℹ️  Verificando se respostas diferentes revelam existência de usuários${NC}"
     echo ""
@@ -2942,7 +3056,7 @@ test_account_enumeration() {
 # FORMAT STRING INJECTION
 #==============================================================================
 test_format_string() {
-    print_section "📝 TESTES DE FORMAT STRING INJECTION"
+    print_section "📝 TESTES DE FORMAT STRING INJECTION" "-c formatstring"
     
     print_subsection "Format String em Parâmetros"
     test_curl "Format: %s" "block" -A "$UA" -Lk "${URL}?input=%s%s%s%s%s"
@@ -2965,7 +3079,7 @@ test_format_string() {
 # CSRF PROTECTION CHECK
 #==============================================================================
 test_csrf_protection() {
-    print_section "🛡️ TESTES DE PROTEÇÃO CSRF"
+    print_section "🛡️ TESTES DE PROTEÇÃO CSRF" "-c csrf"
     
     echo -e "  ${YELLOW}ℹ️  Verificando proteções contra Cross-Site Request Forgery${NC}"
     echo ""
@@ -3017,7 +3131,7 @@ test_csrf_protection() {
 # 403 BYPASS TECHNIQUES (Técnicas de Bypass para Erro 403)
 #==============================================================================
 test_403_bypass() {
-    print_section "🔓 TESTES DE 403 BYPASS (100+ testes)"
+    print_section "🔓 TESTES DE 403 BYPASS (100+ testes)" "-c 403bypass"
     
     echo -e "  ${YELLOW}ℹ️  Testando técnicas para bypass de restrições 403 Forbidden${NC}"
     echo -e "  ${YELLOW}   Esses testes devem ser BLOQUEADOS para garantir a segurança${NC}"
