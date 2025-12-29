@@ -1,13 +1,13 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 5.0.0
+# Versão: 5.1.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
 #            Inclui 50+ categorias de testes e 800+ payloads de ataque
 #==============================================================================
 
 set -uo pipefail
-VERSION="5.0.0"
+VERSION="5.1.0"
 
 # Cores
 RED='\033[0;31m'
@@ -3434,8 +3434,8 @@ test_nosql_injection() {
     test_curl "NoSQL: JSON \$or bypass" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"$or":[{"username":"admin"},{"username":{"$ne":""}}]}' "$URL"
     
     print_subsection "MongoDB JavaScript Injection"
-    test_curl "NoSQL: \$where JS" "block" -A "$UA" -Lk "${URL}?\$where=function(){return true;}"
-    test_curl "NoSQL: \$where sleep" "block" -A "$UA" -Lk "${URL}?\$where=sleep(5000)"
+    test_curl "NoSQL: \$where JS" "block" -A "$UA" -Lk ''"${URL}"'?$where=function(){return true;}'
+    test_curl "NoSQL: \$where sleep" "block" -A "$UA" -Lk ''"${URL}"'?$where=sleep(5000)'
     test_curl "NoSQL: mapReduce" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"mapReduce":"users","map":"function(){emit(1,this)}","reduce":"function(k,v){return v}"}' "$URL"
     
     print_subsection "CouchDB Injection"
@@ -3707,8 +3707,8 @@ test_time_based_injection() {
     test_curl "SQLi Time: CASE WHEN" "block" -A "$UA" -Lk "${URL}?id=1' AND (CASE WHEN (1=1) THEN SLEEP(5) ELSE 0 END)--"
     
     print_subsection "NoSQL Time-based Blind"
-    test_curl "NoSQL Time: \$where sleep" "block" -A "$UA" -Lk "${URL}?\$where=sleep(5000)"
-    test_curl "NoSQL Time: function sleep" "block" -A "$UA" -Lk "${URL}?query={\"\\$where\":\"sleep(5000)\"}"
+    test_curl "NoSQL Time: \$where sleep" "block" -A "$UA" -Lk ''"${URL}"'?$where=sleep(5000)'
+    test_curl "NoSQL Time: function sleep" "block" -A "$UA" -Lk ''"${URL}"'?query={"$where":"sleep(5000)"}'
     
     print_subsection "Command Injection Time-based"
     test_curl "CMDi Time: ;sleep 5" "block" -A "$UA" -Lk "${URL}?cmd=test;sleep 5"
@@ -3749,6 +3749,287 @@ test_prototype_pollution() {
     test_curl "Proto: URL encoded" "block" -A "$UA" -Lk "${URL}?__%70roto__%5Badmin%5D=1"
     test_curl "Proto: Double encoded" "block" -A "$UA" -Lk "${URL}?%5F%5Fproto%5F%5F%5Badmin%5D=1"
     test_curl "Proto: Unicode" "block" -A "$UA" -Lk "${URL}?__proto\u005f\u005f[admin]=1"
+}
+
+#==============================================================================
+# WAF EVASION TECHNIQUES (150+ testes baseados em evasion.md)
+#==============================================================================
+test_waf_evasion() {
+    print_section "🎭 TESTES DE WAF EVASION TECHNIQUES (150+ testes)" "-c evasion"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando técnicas de evasão de WAF - todos devem ser BLOQUEADOS${NC}"
+    echo -e "  ${YELLOW}   Se algum passar, o WAF precisa de regras mais robustas${NC}"
+    echo ""
+    
+    # -------------------------------------------------------------------------
+    # 1. CASE TOGGLING (Mixed Case)
+    # -------------------------------------------------------------------------
+    print_subsection "1. Case Toggling"
+    test_curl "Case: ScRiPt" "block" -A "$UA" -Lk "${URL}?q=<ScRiPt>alert(1)</sCrIpT>"
+    test_curl "Case: sElEcT" "block" -A "$UA" -Lk "${URL}?id=1 sElEcT * FrOm users"
+    test_curl "Case: UnIoN" "block" -A "$UA" -Lk "${URL}?id=1 UnIoN SeLeCt 1,2,3--"
+    test_curl "Case: oNeRrOr" "block" -A "$UA" -Lk "${URL}?q=<img src=x oNeRrOr=alert(1)>"
+    test_curl "Case: OnLoAd" "block" -A "$UA" -Lk "${URL}?q=<svg OnLoAd=alert(1)>"
+    
+    # -------------------------------------------------------------------------
+    # 2. URL ENCODING
+    # -------------------------------------------------------------------------
+    print_subsection "2. URL Encoding"
+    test_curl "URLEnc: script full" "block" -A "$UA" -Lk "${URL}?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+    test_curl "URLEnc: select" "block" -A "$UA" -Lk "${URL}?id=1%20%55%4E%49%4F%4E%20%53%45%4C%45%43%54%201,2,3"
+    test_curl "URLEnc: svg onload" "block" -A "$UA" -Lk "${URL}?q=%3CsvG%2Fx%3D%22%3E%22%2FoNloaD%3Dconfirm()%2F%2F"
+    test_curl "URLEnc: alert" "block" -A "$UA" -Lk "${URL}?q=%61%6c%65%72%74%28%31%29"
+    
+    # -------------------------------------------------------------------------
+    # 3. DOUBLE URL ENCODING
+    # -------------------------------------------------------------------------
+    print_subsection "3. Double URL Encoding"
+    test_curl "DoubleEnc: script" "block" -A "$UA" -Lk "${URL}?q=%253Cscript%253Ealert()%253C%252Fscript%253E"
+    test_curl "DoubleEnc: path traversal" "block" -A "$UA" -Lk "${URL}?file=%252E%252E%252F%252E%252E%252Fetc%252Fpasswd"
+    test_curl "DoubleEnc: select" "block" -A "$UA" -Lk "${URL}?id=%2531%2520%2555%254E%2549%254F%254E"
+    test_curl "DoubleEnc: quote" "block" -A "$UA" -Lk "${URL}?id=%2527%2520OR%25201=1--"
+    
+    # -------------------------------------------------------------------------
+    # 4. UNICODE/UTF-8 NORMALIZATION
+    # -------------------------------------------------------------------------
+    print_subsection "4. Unicode Normalization"
+    test_curl "Unicode: fullwidth <" "block" -A "$UA" -Lk "${URL}?q=＜script＞alert(1)＜/script＞"
+    test_curl "Unicode: overlong UTF-8" "block" -A "$UA" -Lk "${URL}?q=%C0%BC%C0%BE" # < >
+    test_curl "Unicode: path traversal" "block" -A "$UA" -Lk "${URL}?file=%C0%AE%C0%AE%C0%AFetc%C0%AFpasswd"
+    test_curl "Unicode: script tag" "block" -A "$UA" -Lk ''"${URL}"'?q=<marquee onstart=\u0070r\u006fmpt()>'
+    test_curl "Unicode: domain bypass" "block" -A "$UA" -Lk "${URL}?url=http://evil。com"
+    
+    # -------------------------------------------------------------------------
+    # 5. HTML ENTITY ENCODING
+    # -------------------------------------------------------------------------
+    print_subsection "5. HTML Entity Encoding"
+    test_curl "HTMLEnc: named entities" "block" -A "$UA" -Lk ''"${URL}"'?q=&lt;script&gt;alert(1)&lt;/script&gt;'
+    test_curl "HTMLEnc: numeric dec" "block" -A "$UA" -Lk "${URL}?q=&#60;script&#62;alert(1)&#60;/script&#62;"
+    test_curl "HTMLEnc: numeric hex" "block" -A "$UA" -Lk "${URL}?q=&#x3c;script&#x3e;alert(1)&#x3c;/script&#x3e;"
+    test_curl "HTMLEnc: mixed" "block" -A "$UA" -Lk ''"${URL}"'?q=&quot;&gt;&lt;img src=x onerror=alert(1)&gt;'
+    test_curl "HTMLEnc: padded zeros" "block" -A "$UA" -Lk "${URL}?q=&#0000060;script&#0000062;"
+    
+    # -------------------------------------------------------------------------
+    # 6. COMMENTS OBFUSCATION
+    # -------------------------------------------------------------------------
+    print_subsection "6. Comments Obfuscation"
+    test_curl "Comment: SQL inline" "block" -A "$UA" -Lk "${URL}?id=1+un/**/ion+sel/**/ect+1,2,3--"
+    test_curl "Comment: SQL nested" "block" -A "$UA" -Lk "${URL}?id=1/*!UNION*/+/*!SELECT*/+1,2,3--"
+    test_curl "Comment: SQL version" "block" -A "$UA" -Lk "${URL}?id=1/*!50000UNION*/+/*!50000SELECT*/+1,2,3"
+    test_curl "Comment: XSS HTML" "block" -A "$UA" -Lk "${URL}?q=<!--><script>alert/**/()/**/</script>"
+    test_curl "Comment: XSS multi" "block" -A "$UA" -Lk "${URL}?q=<script>/**/alert/**/()/**/</script>"
+    
+    # -------------------------------------------------------------------------
+    # 7. WHITESPACE MANIPULATION
+    # -------------------------------------------------------------------------
+    print_subsection "7. Whitespace Manipulation"
+    test_curl "Whitespace: tab" "block" -A "$UA" -Lk "${URL}?id=1%09union%09select%091,2,3"
+    test_curl "Whitespace: newline" "block" -A "$UA" -Lk "${URL}?id=1%0aunion%0dselect%0a1,2,3"
+    test_curl "Whitespace: vertical tab" "block" -A "$UA" -Lk "${URL}?id=1%0bunion%0bselect%0b1,2,3"
+    test_curl "Whitespace: form feed" "block" -A "$UA" -Lk "${URL}?id=1%0cunion%0cselect%0c1,2,3"
+    test_curl "Whitespace: XSS tabs" "block" -A "$UA" -Lk "${URL}?q=<img%09src=x%09onerror=alert(1)>"
+    test_curl "Whitespace: XSS CRLF" "block" -A "$UA" -Lk "${URL}?q=<iframe%0Asrc=javascript:alert(1)>"
+    
+    # -------------------------------------------------------------------------
+    # 8. NULL BYTES
+    # -------------------------------------------------------------------------
+    print_subsection "8. Null Byte Injection"
+    test_curl "NullByte: script tag" "block" -A "$UA" -Lk "${URL}?q=<scri%00pt>alert(1)</scri%00pt>"
+    test_curl "NullByte: path" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd%00.jpg"
+    test_curl "NullByte: extension" "block" -A "$UA" -Lk "${URL}?file=shell.php%00.txt"
+    test_curl "NullByte: param" "block" -A "$UA" -Lk "${URL}?id=%00' OR 1=1--"
+    test_curl "NullByte: multipart" "block" -A "$UA" -Lk "${URL}?q=<s%00c%00r%00i%00p%00t>alert(1)</script>"
+    
+    # -------------------------------------------------------------------------
+    # 9. CONCATENATION/DYNAMIC PAYLOADS
+    # -------------------------------------------------------------------------
+    print_subsection "9. Concatenation/Dynamic Payloads"
+    test_curl "Concat: JS eval" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>eval("al"+"ert(1)")</script>'
+    test_curl "Concat: JS String.fromCharCode" "block" -A "$UA" -Lk "${URL}?q=<script>eval(String.fromCharCode(97,108,101,114,116,40,49,41))</script>"
+    test_curl "Concat: atob base64" "block" -A "$UA" -Lk "${URL}?q=<script>eval(atob('YWxlcnQoMSk='))</script>"
+    test_curl "Concat: Function" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>new Function("al"+"ert(1)")()</script>'
+    test_curl "Concat: template literals" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>alert`1`</script>'
+    
+    # -------------------------------------------------------------------------
+    # 10. JUNK CHARACTERS
+    # -------------------------------------------------------------------------
+    print_subsection "10. Junk Characters"
+    test_curl "Junk: before alert" "block" -A "$UA" -Lk "${URL}?q=<script>+-+-1-+-+alert(1)</script>"
+    test_curl "Junk: in body tag" "block" -A "$UA" -Lk ''"${URL}"'?q=<BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert()>'
+    test_curl "Junk: multiple aaaa" "block" -A "$UA" -Lk "${URL}?q=<a aa aaa aaaa href=javascript:alert(1)>click"
+    test_curl "Junk: random attrs" "block" -A "$UA" -Lk "${URL}?q=<img/src/onerror=.1|alert(1)>"
+    
+    # -------------------------------------------------------------------------
+    # 11. WILDCARD OBFUSCATION (Linux Commands)
+    # -------------------------------------------------------------------------
+    print_subsection "11. Wildcard Obfuscation (RCE)"
+    test_curl "Wildcard: /???/??t passwd" "block" -A "$UA" -Lk "${URL}?cmd=/???/??t+/???/??ss??"
+    test_curl "Wildcard: /???/n? netcat" "block" -A "$UA" -Lk "${URL}?cmd=/???/n?+127.0.0.1+1337"
+    test_curl "Wildcard: /bin/ca*" "block" -A "$UA" -Lk "${URL}?cmd=/bin/ca*+/etc/passw*"
+    test_curl "Wildcard: /?in/?at" "block" -A "$UA" -Lk "${URL}?cmd=/?in/?at+/et?/passw?"
+    test_curl "Wildcard: [c-h]at" "block" -A "$UA" -Lk "${URL}?cmd=/bin/[c-h]at+/etc/passwd"
+    
+    # -------------------------------------------------------------------------
+    # 12. VARIABLE INJECTION (Bash)
+    # -------------------------------------------------------------------------
+    print_subsection "12. Variable Injection (Bash RCE)"
+    test_curl 'Bash: $u empty var' "block" -A "$UA" -Lk ''"${URL}"'?cmd=/bin/cat$u+/etc/passwd$u'
+    test_curl 'Bash: $x$x pattern' "block" -A "$UA" -Lk ''"${URL}"'?cmd=$u/bin$u/cat$u+$u/etc$u/passwd$u'
+    test_curl "Bash: quote concat" "block" -A "$UA" -Lk "${URL}?cmd=/bi'n'/c'at'+/e'tc'/pa'ss'wd"
+    test_curl 'Bash: backslash' "block" -A "$UA" -Lk "${URL}?cmd=c\\a\\t+/et\\c/pas\\swd"
+    test_curl 'Bash: $@ empty' "block" -A "$UA" -Lk ''"${URL}"'?cmd=cat$@+/etc$@/passwd'
+    
+    # -------------------------------------------------------------------------
+    # 13. HTTP PARAMETER POLLUTION
+    # -------------------------------------------------------------------------
+    print_subsection "13. HTTP Parameter Pollution"
+    test_curl "HPP: duplicate id" "block" -A "$UA" -Lk "${URL}?id=1&id=2+UNION+SELECT+1,2,3--"
+    test_curl "HPP: split payload" "block" -A "$UA" -Lk "${URL}?id=1+UNION&id=SELECT+1,2,3--"
+    test_curl "HPP: array syntax" "block" -A "$UA" -Lk "${URL}?id[]=1&id[]=UNION&id[]=SELECT"
+    test_curl "HPP: XSS split" "block" -A "$UA" -Lk "${URL}?q=<script>&q=alert(1)&q=</script>"
+    
+    # -------------------------------------------------------------------------
+    # 14. CHARSET/ENCODING TRICKS
+    # -------------------------------------------------------------------------
+    print_subsection "14. Charset/Encoding Tricks"
+    test_curl "Charset: UTF-7 XSS" "block" -A "$UA" -Lk -H "Accept-Charset: utf-7" "${URL}?q=+ADw-script+AD4-alert(1)+ADw-/script+AD4-"
+    test_curl "Charset: UTF-32 header" "block" -A "$UA" -Lk -H "Accept-Charset: utf-32; q=0.5" "${URL}?q=%E2%88%80%E3%B8%80script%E3%B8%80"
+    test_curl "Charset: IBM037" "block" -A "$UA" -Lk -H "Content-Type: application/x-www-form-urlencoded; charset=ibm037" "${URL}"
+    
+    # -------------------------------------------------------------------------
+    # 15. PARSER DIFFERENTIAL / TOKEN BREAKERS
+    # -------------------------------------------------------------------------
+    print_subsection "15. Parser Differential/Token Breakers"
+    test_curl "Parser: unbalanced quote" "block" -A "$UA" -Lk "${URL}?id=1'+OR+'1"
+    test_curl "Parser: unbalanced bracket" "block" -A "$UA" -Lk "${URL}?id=123);DROP+TABLE+users--"
+    test_curl "Parser: backtick" "block" -A "$UA" -Lk ''"${URL}"'?id=1`+OR+`1`=`1'
+    test_curl "Parser: comment break" "block" -A "$UA" -Lk "${URL}?id=1--+%0AUNION+SELECT+1,2,3"
+    
+    # -------------------------------------------------------------------------
+    # 16. JAVASCRIPT ALTERNATIVES
+    # -------------------------------------------------------------------------
+    print_subsection "16. JavaScript Alternatives"
+    test_curl "JSAlt: window obj" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>window["alert"](1)</script>'
+    test_curl "JSAlt: self obj" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>self["alert"](1)</script>'
+    test_curl "JSAlt: parent obj" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>parent["alert"](1)</script>'
+    test_curl "JSAlt: this" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>this["alert"](1)</script>'
+    test_curl "JSAlt: top obj" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>top["alert"](1)</script>'
+    test_curl "JSAlt: globalThis" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>globalThis["alert"](1)</script>'
+    
+    # -------------------------------------------------------------------------
+    # 17. EVENT HANDLERS ALTERNATIVES
+    # -------------------------------------------------------------------------
+    print_subsection "17. Alternative Event Handlers"
+    test_curl "Event: onwheel" "block" -A "$UA" -Lk ''"${URL}"'?q=<body style="height:1000px" onwheel="alert(1)">'
+    test_curl "Event: ontoggle" "block" -A "$UA" -Lk "${URL}?q=<details+ontoggle=alert(1)+open>"
+    test_curl "Event: onpointerover" "block" -A "$UA" -Lk "${URL}?q=<div+onpointerover=alert(1)>hover"
+    test_curl "Event: onfocusin" "block" -A "$UA" -Lk "${URL}?q=<input+onfocusin=alert(1)+autofocus>"
+    test_curl "Event: onanimationend" "block" -A "$UA" -Lk ''"${URL}"'?q=<style>@keyframes+a{}</style><b+onanimationend=alert(1)+style="animation:a">'
+    test_curl "Event: onbeforescriptexecute" "block" -A "$UA" -Lk "${URL}?q=<script+onbeforescriptexecute=alert(1)>"
+    test_curl "Event: onmousewheel" "block" -A "$UA" -Lk "${URL}?q=<img+src=x+onmousewheel=alert(1)>"
+    test_curl "Event: onauxclick" "block" -A "$UA" -Lk "${URL}?q=<div+onauxclick=alert(1)>right-click"
+    
+    # -------------------------------------------------------------------------
+    # 18. CLOUDFLARE SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "18. Cloudflare Bypasses"
+    test_curl "CF: svg onload" "block" -A "$UA" -Lk ''"${URL}"'?q=<svg onx=() onload=(confirm)(1)>'
+    test_curl "CF: prompt encoded" "block" -A "$UA" -Lk "${URL}?q=<svg+onload=prompt%26%23x28;document.domain)>"
+    test_curl "CF: base href" "block" -A "$UA" -Lk "${URL}?q=<base+href=//evil.com?"
+    test_curl "CF: decode eval" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>eval(atob(decodeURIComponent("YWxlcnQoMSk=")))</script>'
+    
+    # -------------------------------------------------------------------------
+    # 19. IMPERVA SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "19. Imperva Bypasses"
+    test_curl "Imperva: globalThis" "block" -A "$UA" -Lk ''"${URL}"'?q=<x/onclick=globalThis["\u0070r\u006fmpt"]()>click'
+    test_curl "Imperva: javaNL" "block" -A "$UA" -Lk ''"${URL}"'?q=<a href="j%0A%0Davascript:alert(1)">click</a>'
+    test_curl "Imperva: input multi" "block" -A "$UA" -Lk "${URL}?q=<input+id=a+value=alert><svg+onload=\$[a.value](1)>"
+    
+    # -------------------------------------------------------------------------
+    # 20. MODSECURITY SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "20. ModSecurity Bypasses"
+    test_curl "ModSec: CRLF union" "block" -A "$UA" -Lk "${URL}?id=0+div+1+union%23%0Aselect%23%0A1,2,user()"
+    test_curl "ModSec: DCount" "block" -A "$UA" -Lk "${URL}?id=1+AND+(select+DCount(last(username)))"
+    test_curl "ModSec: /*!UNION" "block" -A "$UA" -Lk "${URL}?id=1'UNION/*!0SELECT+user,2,3,4+from+mysql.user/*-"
+    test_curl "ModSec: new union" "block" -A "$UA" -Lk "${URL}?id=%40%40new+union%23sqlmap%0Aselect+1,2,database()"
+    
+    # -------------------------------------------------------------------------
+    # 21. KONA/AKAMAI SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "21. Kona/Akamai Bypasses"
+    test_curl "Kona: marquee onfinish" "block" -A "$UA" -Lk ''"${URL}"'?q=<marquee loop=1 width=0 onfinish="alert(1)">'
+    test_curl "Kona: onpointerenter" "block" -A "$UA" -Lk ''"${URL}"'?q=asd"on+<>+onpointerenter="alert(1)"'
+    test_curl "Kona: animation" "block" -A "$UA" -Lk ''"${URL}"'?q=<style>@keyframes+a{}</style><b+onanimationstart=alert(1)+style="animation:a">'
+    
+    # -------------------------------------------------------------------------
+    # 22. SUCURI SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "22. Sucuri Bypasses"
+    test_curl "Sucuri: href colon" "block" -A "$UA" -Lk ''"${URL}"'?q=<a href=javascript&colon;confirm(1)>click'
+    test_curl "Sucuri: onauxclick map" "block" -A "$UA" -Lk ''"${URL}"'?q="><input/onauxclick="[1].map(prompt)">'
+    test_curl "Sucuri: cat quotes" "block" -A "$UA" -Lk "${URL}?cmd=;+cat+/e'tc/pass'wd"
+    
+    # -------------------------------------------------------------------------
+    # 23. AWS WAF SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "23. AWS WAF Bypasses"
+    test_curl "AWS: semicolon select" "block" -A "$UA" -Lk ''"${URL}"'?id="; select * from users --'
+    test_curl "AWS: popover" "block" -A "$UA" -Lk "${URL}?q=<button+popovertarget=x>click<test+onbeforetoggle=alert(1)+popover+id=x>"
+    
+    # -------------------------------------------------------------------------
+    # 24. BARRACUDA SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "24. Barracuda Bypasses"
+    test_curl "Barracuda: onwheel" "block" -A "$UA" -Lk ''"${URL}"'?q=<body style="height:1000px" onwheel="alert(1)">'
+    test_curl "Barracuda: contextmenu" "block" -A "$UA" -Lk ''"${URL}"'?q=<div contextmenu="xss">Right-Click<menu id="xss" onshow="alert(1)">'
+    test_curl "Barracuda: encoded" "block" -A "$UA" -Lk "${URL}?q=<b/%25%32%35%25%33%36%25%36%36%25%32%35%25%33%36%25%36%35mouseover=alert(1)>"
+    
+    # -------------------------------------------------------------------------
+    # 25. F5 BIG-IP SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "25. F5 BIG-IP Bypasses"
+    test_curl "F5: table background" "block" -A "$UA" -Lk ''"${URL}"'?q=<table background="javascript:alert(1)"></table>'
+    test_curl "F5: marquee onfinish" "block" -A "$UA" -Lk ''"${URL}"'?q="/><marquee onfinish=confirm(1)>a</marquee>'
+    test_curl "F5: prom encoded" "block" -A "$UA" -Lk ''"${URL}"'?q=<body style="height:1000px" onwheel="prom%25%32%33%25%32%36x70;t(1)">'
+    
+    # -------------------------------------------------------------------------
+    # 26. WORDFENCE SPECIFIC BYPASSES
+    # -------------------------------------------------------------------------
+    print_subsection "26. Wordfence Bypasses"
+    test_curl "WF: href 01javascript" "block" -A "$UA" -Lk "${URL}?q=<a+href=&#01javascript:alert(1)>"
+    test_curl "WF: href entities" "block" -A "$UA" -Lk "${URL}?q=<a+href=javas&#99;ript:alert(1)>"
+    test_curl "WF: newline href" "block" -A "$UA" -Lk "${URL}?q=<a/**/href=j%0Aa%0Av%0Aa%0As%0Ac%0Ar%0Ai%0Ap%0At:alert()>click"
+    
+    # -------------------------------------------------------------------------
+    # 27. EXOTIC PAYLOADS
+    # -------------------------------------------------------------------------
+    print_subsection "27. Exotic Payloads"
+    test_curl "Exotic: data URI" "block" -A "$UA" -Lk ''"${URL}"'?q=<object data="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">'
+    test_curl "Exotic: svg foreignObject" "block" -A "$UA" -Lk "${URL}?q=<svg><foreignObject><iframe+srcdoc='<script>alert(1)</script>'>"
+    test_curl "Exotic: math XSS" "block" -A "$UA" -Lk ''"${URL}"'?q=<math><maction actiontype="statusline#http://evil.com" xlink:href="javascript:alert(1)">click'
+    test_curl "Exotic: use xlink" "block" -A "$UA" -Lk ''"${URL}"'?q=<svg><use xlink:href="data:image/svg+xml,<svg id=x xmlns=%22http://www.w3.org/2000/svg%22 onload=alert(1)></svg>#x">'
+    test_curl "Exotic: srcdoc" "block" -A "$UA" -Lk ''"${URL}"'?q=<iframe srcdoc="<script>alert(1)</script>">'
+    
+    # -------------------------------------------------------------------------
+    # 28. SQL FUNCTION ALTERNATIVES
+    # -------------------------------------------------------------------------
+    print_subsection "28. SQL Function Alternatives"
+    test_curl "SQL Alt: LPAD" "block" -A "$UA" -Lk "${URL}?id=1%0b||%0bLPAD(USER,7,1)"
+    test_curl "SQL Alt: FIELD" "block" -A "$UA" -Lk "${URL}?id=1+and+FIELD(user(),0x726f6f74)"
+    test_curl "SQL Alt: BIT_COUNT" "block" -A "$UA" -Lk "${URL}?id=1+and+BIT_COUNT(1)=1"
+    test_curl "SQL Alt: CONV" "block" -A "$UA" -Lk "${URL}?id=1+or+substr(user,1,1)=lower(conv(11,10,36))"
+    test_curl "SQL Alt: unhex" "block" -A "$UA" -Lk "${URL}?id=1+or+substr(user,1,1)=unhex(61)"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Sobre Evasão de WAF:${NC}"
+    echo -e "  ${YELLOW}• Payloads bloqueados:${NC} WAF está detectando corretamente"
+    echo -e "  ${YELLOW}• Payloads que passaram:${NC} WAF precisa de regras mais robustas"
+    echo -e "  ${YELLOW}• Recomendação:${NC} Use WAFs com normalização de encoding antes da inspeção"
+    echo -e "  ${YELLOW}• Recursão:${NC} Decodifique payloads múltiplas vezes antes de inspecionar"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
 #==============================================================================
@@ -3827,7 +4108,7 @@ while [[ $# -gt 0 ]]; do
             echo "  ports, ssl, useragent, referer, fakebots, 403bypass,"
             echo "  clickjacking, secheaders, session, css, email, credentials,"
             echo "  enumeration, formatstring, csrf, jwt, nosql, ldap, xpath,"
-            echo "  deser, upload, redirect, idor, timebased, prototype"
+            echo "  deser, upload, redirect, idor, timebased, prototype, evasion"
             exit 0 
             ;;
         -v|--verbose) VERBOSE=true; shift ;;
@@ -3919,6 +4200,7 @@ case $CATEGORY in
     idor|privesc|privilege) test_idor_priv_esc ;;
     timebased|blind|timeblind) test_time_based_injection ;;
     prototype|protopollution|__proto__) test_prototype_pollution ;;
+    evasion|waf-evasion|bypass-waf) test_waf_evasion ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -3970,6 +4252,7 @@ case $CATEGORY in
         test_idor_priv_esc
         test_time_based_injection
         test_prototype_pollution
+        test_waf_evasion
         test_bad_user_agents
         test_bad_referers
         test_good_bots

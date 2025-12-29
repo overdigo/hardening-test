@@ -4,8 +4,8 @@
   <img src="https://img.shields.io/badge/version-5.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
-  <img src="https://img.shields.io/badge/tests-1400%2B-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/categories-50%2B-purple.svg" alt="Categories">
+  <img src="https://img.shields.io/badge/tests-1500%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/categories-60%2B-purple.svg" alt="Categories">
 </p>
 
 <p align="center">
@@ -117,6 +117,7 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 | **🆕 IDOR/Priv Esc** | **30** | IDOR, mass assignment, GraphQL authz |
 | **🆕 Time-based Blind** | **20** | SQL SLEEP, NoSQL sleep, CMDi delays |
 | **🆕 Prototype Pollution** | **20** | __proto__, constructor pollution |
+| **🆕 WAF Evasion** | **150+** | Bypass techniques for Cloudflare, Imperva, ModSec, AWS WAF, F5, Sucuri, Wordfence |
 | User-Agents | 100+ | Bots maliciosos, scrapers, scanners |
 | Referers | 100+ | SPAM, SEO Black Hat, Injection |
 | Fake Bots | 10 | Impostores de Googlebot/Bingbot |
@@ -257,6 +258,7 @@ chmod +x head-test.sh
 | **🆕 `idor`** | `privesc`, `privilege` | IDOR / Privilege Escalation |
 | **🆕 `timebased`** | `blind`, `timeblind` | Time-based Blind Injection |
 | **🆕 `prototype`** | `protopollution`, `__proto__` | Prototype Pollution |
+| **🆕 `evasion`** | `waf-evasion`, `bypass-waf` | WAF Evasion Techniques (150+ payloads) |
 | `useragent` | - | User-Agent tests |
 | `referer` | `referer-all` | Todos os referers maliciosos |
 | `referer-spam` | `spam` | Apenas referers SPAM |
@@ -612,6 +614,12 @@ hardening-test/
   - SQL SLEEP, NoSQL sleep, CMDi delays
 - 🆕 **Prototype Pollution** (20 testes)
   - __proto__, constructor.prototype attacks
+- 🆕 **WAF Evasion Techniques** (150+ testes)
+  - Case toggling, URL/Double/Unicode encoding
+  - Comments, whitespace, null bytes obfuscation
+  - Wildcard obfuscation, variable injection
+  - HTTP Parameter Pollution, charset tricks
+  - Bypasses específicos: Cloudflare, Imperva, ModSecurity, AWS WAF, F5 BIG-IP, Sucuri, Wordfence, Barracuda, Kona/Akamai
 - 🆕 **403 Bypass Tests** (100+ testes de bypass para erro 403)
   - IP Spoofing Headers (40+ headers)
   - Port Bypass via X-Forwarded-Port
@@ -626,7 +634,7 @@ hardening-test/
 - 🆕 **Account Enumeration** (10 testes)
 - 🆕 **Format String Injection** (12 testes)
 - 🆕 **CSRF Protection** (15 testes)
-- 🔧 Expansão para 1400+ testes totais (58 funções de teste)
+- 🔧 Expansão para 1500+ testes totais (59 funções de teste)
 - 🔧 Filtros de resultado (--filter pass/fail)
 - 🔧 Recomendações de hardening integradas
 
