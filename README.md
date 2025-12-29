@@ -200,6 +200,7 @@ chmod +x head-test.sh
 | `-u, --user-agent <num>` | Seleciona User-Agent (1-15) |
 | `-c, --category <cat>` | Executa categoria específica |
 | `-f, --filter <filtro>` | Filtra resultados: all, pass, fail |
+| `--with-ports` | Inclui teste de portas no `all` (opcional, lento) |
 
 ---
 
@@ -238,7 +239,7 @@ chmod +x head-test.sh
 | `cdn` | `cloudflare`, `cdnbypass` | CDN/Cloudflare bypass |
 | `xslt` | `xsltinjection` | XSLT server-side injection |
 | `waf` | `wafbypass`, `proxy` | WAF/Proxy bypass |
-| `ports` | `exposedports`, `portscan` | Exposed ports check |
+| `ports` | `exposedports`, `portscan` | Exposed ports check (execução paralela) |
 | **🆕 `403bypass`** | `403`, `forbidden` | Bypass de erro 403 |
 | **🆕 `clickjacking`** | `xfo`, `framebusting` | Proteção contra Clickjacking |
 | **🆕 `secheaders`** | `securityheaders`, `headers` | Security Headers check |
@@ -417,10 +418,16 @@ Verifica proteções contra CSRF:
 
 ## 💡 Exemplos
 
-### Teste completo
+### Teste completo (sem portas - rápido)
 
 ```bash
 ./head-test.sh https://meusite.com.br
+```
+
+### Teste completo COM scan de portas
+
+```bash
+./head-test.sh --with-ports https://meusite.com.br
 ```
 
 ### Teste com filtro (apenas falhas)
@@ -451,6 +458,12 @@ Verifica proteções contra CSRF:
 
 ```bash
 ./head-test.sh -c credentials https://meusite.com.br
+```
+
+### Teste de portas expostas (paralelo, ~5-10s)
+
+```bash
+./head-test.sh -c ports https://meusite.com.br
 ```
 
 ### Múltiplas opções
@@ -486,6 +499,10 @@ Verifica proteções contra CSRF:
 |-----------|-------------|
 | ✓ PROTEGIDA | Porta fechada/filtrada - **correto!** |
 | ✗ EXPOSTA | Porta aberta externamente - **risco!** |
+
+> **⚚️ Nota**: O teste de portas agora executa em paralelo (até 20 conexões simultâneas), 
+> reduzindo o tempo de ~2 minutos para ~5-10 segundos. Por padrão, não é incluído no `all` 
+> para manter a execução rápida. Use `--with-ports` ou `-c ports` explicitamente.
 
 ---
 
@@ -595,6 +612,10 @@ hardening-test/
   - Command Injection com wildcards, variable injection, quote concatenation, backslash
   - Path Traversal com encoding, Unicode overlong UTF-8, null bytes
   - SSTI, XXE, LDAP, Open Redirect com variantes ofuscadas
+- 🔧 **Otimização de teste de portas**:
+  - Execução paralela (20 conexões simultâneas) - de ~2min para ~5-10s
+  - Nova flag `--with-ports` para incluir no `all` (opcional)
+  - Por padrão, `-c all` não inclui port scan para maior velocidade
 - 🔧 Expansão para 1650+ testes totais (60 funções de teste)
 - 🔧 Atualização da categoria WAF Evasion com bypasses específicos
 
@@ -700,7 +721,7 @@ Contribuições são bem-vindas! Por favor:
 
 - [ ] Relatório em HTML/PDF
 - [ ] Integração com CI/CD
-- [ ] Testes paralelos para melhor performance
+- [x] Testes paralelos para melhor performance (port scanning)
 - [ ] Suporte a proxy/SOCKS
 - [ ] Integração com Nuclei templates
 - [ ] API REST para automação

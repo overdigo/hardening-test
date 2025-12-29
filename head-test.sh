@@ -28,6 +28,7 @@ OUTPUT_FILE=""
 URL=""
 UA=""
 FILTER="all"  # all, pass, fail
+WITH_PORTS=false  # Testes de portas são lentos, só executar com flag explícita
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # User-Agents disponíveis
@@ -2204,12 +2205,16 @@ test_waf_bypass() {
 
 #==============================================================================
 # EXPOSED PORTS CHECK (Serviços que devem estar limitados a localhost)
+# NOTA: Este teste é LENTO (~3s por porta se filtrada). Use -c ports explicitamente
+#       ou --with-ports para incluir no 'all'.
+#       Otimizado com execução paralela para acelerar significativamente.
 #==============================================================================
 test_exposed_ports() {
     print_section "🔌 TESTES DE PORTAS EXPOSTAS (Serviços Sensíveis)" "-c ports"
     
     echo -e "  ${YELLOW}ℹ️  Verificando portas de serviços que NÃO devem estar expostos externamente${NC}"
     echo -e "  ${YELLOW}   Esses serviços devem estar limitados a localhost (127.0.0.1)${NC}"
+    echo -e "  ${CYAN}   ⚡ Executando testes em paralelo para maior velocidade...${NC}"
     echo ""
     
     # Extrair host da URL
@@ -2222,101 +2227,161 @@ test_exposed_ports() {
         return
     fi
     
-    # Função auxiliar para testar porta
-    test_port() {
+    # Criar diretório temporário para resultados
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap "rm -rf $tmp_dir" RETURN
+    
+    # Definir todas as portas para testar
+    declare -A PORTS=(
+        # Bancos de Dados (CRÍTICO)
+        [3306]="MySQL/MariaDB|Acesso direto ao banco de dados|db"
+        [5432]="PostgreSQL|Acesso direto ao banco de dados|db"
+        [27017]="MongoDB|Data theft, ransomware attacks|db"
+        [1433]="MSSQL|Acesso direto ao banco SQL Server|db"
+        [1521]="Oracle|Acesso direto ao banco Oracle|db"
+        # Cache e Message Queue (CRÍTICO)
+        [6379]="Redis|RCE, data theft (sem auth por padrão)|cache"
+        [11211]="Memcached|DDoS amplification, cache theft|cache"
+        [5672]="RabbitMQ AMQP|Message queue access|cache"
+        [15672]="RabbitMQ Admin|Admin panel exposure|cache"
+        # Search Engines e Key-Value Stores
+        [9200]="Elasticsearch HTTP|Index access, potential RCE|search"
+        [9300]="Elasticsearch Transport|Cluster access|search"
+        [7474]="Neo4j HTTP|Graph database access|search"
+        [8529]="ArangoDB|Multi-model database access|search"
+        [7000]="Cassandra|NoSQL database access|search"
+        [9042]="Cassandra CQL|CQL native protocol|search"
+        # Container e Orquestração (CRÍTICO)
+        [2375]="Docker API (HTTP)|RCE completo - container escape|container"
+        [2376]="Docker API (HTTPS)|RCE completo - container escape|container"
+        [2379]="etcd Client|Kubernetes secrets exposure|container"
+        [2380]="etcd Peer|etcd cluster access|container"
+        [6443]="Kubernetes API|Cluster takeover|container"
+        [10250]="Kubelet|Node access, pod execution|container"
+        [10255]="Kubelet Read-Only|Pod information leak|container"
+        # Aplicações e Desenvolvimento
+        [9000]="PHP-FPM|RCE se exposto|app"
+        [8080]="HTTP Alt (Dev/Tomcat)|Aplicações não protegidas|app"
+        [8443]="HTTPS Alt|Aplicações não protegidas|app"
+        [3000]="Node.js Dev|Dev server exposure|app"
+        [5000]="Flask/Python Dev|Dev server exposure|app"
+        [4000]="Dev Server|Dev server exposure|app"
+        [9090]="Prometheus|Metrics exposure|app"
+        [3100]="Grafana Loki|Log data exposure|app"
+        # Administração e Monitoramento
+        [8000]="Django Dev|Dev server exposure|admin"
+        [9001]="Supervisor|Process control|admin"
+        [61616]="ActiveMQ|Message broker access|admin"
+        [8161]="ActiveMQ Admin|Admin console|admin"
+        [50070]="Hadoop NameNode|HDFS access|admin"
+        [8088]="Hadoop YARN|Resource manager|admin"
+        # Mail e Outros Serviços
+        [25]="SMTP|Email relay abuse|mail"
+        [587]="SMTP Submission|Email relay|mail"
+        [110]="POP3|Email access|mail"
+        [143]="IMAP|Email access|mail"
+        [21]="FTP|Unencrypted file transfer|mail"
+        [23]="Telnet|Unencrypted remote access|mail"
+        [69]="TFTP|Trivial FTP (no auth)|mail"
+        # Remote Access
+        [22]="SSH|Brute force (verificar fail2ban)|remote"
+        [3389]="RDP|Windows Remote Desktop|remote"
+        [5900]="VNC|Remote desktop|remote"
+        [5901]="VNC :1|Remote desktop|remote"
+    )
+    
+    # Função para testar uma porta (executada em paralelo)
+    test_single_port() {
         local port="$1"
-        local service="$2"
-        local risk="$3"
-        local result_text=""
+        local info="$2"
+        local result_file="$3"
         
-        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        local service=$(echo "$info" | cut -d'|' -f1)
+        local risk=$(echo "$info" | cut -d'|' -f2)
+        local category=$(echo "$info" | cut -d'|' -f3)
         
-        # Timeout de 3 segundos para verificar a porta
-        if nc -z -w 3 "$host_part" "$port" 2>/dev/null; then
-            # Porta aberta - isso é RUIM para serviços internos
-            result_text="FAIL"
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-            [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Porta $port ($service) - EXPOSTA" >> "$OUTPUT_FILE"
-            
-            # Aplicar filtro
-            if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
-                echo -e "  ${RED}[✗]${NC} Porta $port ($service) - ${RED}EXPOSTA${NC} - $risk"
-            fi
+        # Timeout reduzido para 2 segundos em paralelo
+        if nc -z -w 2 "$host_part" "$port" 2>/dev/null; then
+            echo "FAIL|$port|$service|$risk|$category" >> "$result_file"
         else
-            # Porta fechada ou filtrada - isso é BOM
-            result_text="PASS"
-            PASSED_TESTS=$((PASSED_TESTS + 1))
-            [ -n "$OUTPUT_FILE" ] && echo "[PASS] Porta $port ($service) - Protegida" >> "$OUTPUT_FILE"
-            
-            # Aplicar filtro
-            if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
-                echo -e "  ${GREEN}[✓]${NC} Porta $port ($service) - ${GREEN}PROTEGIDA${NC}"
-            fi
+            echo "PASS|$port|$service|$risk|$category" >> "$result_file"
         fi
     }
     
-    print_subsection "Bancos de Dados (CRÍTICO)"
-    test_port 3306 "MySQL/MariaDB" "Acesso direto ao banco de dados"
-    test_port 5432 "PostgreSQL" "Acesso direto ao banco de dados"
-    test_port 27017 "MongoDB" "Data theft, ransomware attacks"
-    test_port 1433 "MSSQL" "Acesso direto ao banco SQL Server"
-    test_port 1521 "Oracle" "Acesso direto ao banco Oracle"
+    # Exportar função e variáveis para subshells
+    export -f test_single_port
+    export host_part
     
-    print_subsection "Cache e Message Queue (CRÍTICO)"
-    test_port 6379 "Redis" "RCE, data theft (sem auth por padrão)"
-    test_port 11211 "Memcached" "DDoS amplification, cache theft"
-    test_port 5672 "RabbitMQ AMQP" "Message queue access"
-    test_port 15672 "RabbitMQ Admin" "Admin panel exposure"
+    local result_file="$tmp_dir/results.txt"
+    touch "$result_file"
     
-    print_subsection "Search Engines e Key-Value Stores"
-    test_port 9200 "Elasticsearch HTTP" "Index access, potential RCE"
-    test_port 9300 "Elasticsearch Transport" "Cluster access"
-    test_port 7474 "Neo4j HTTP" "Graph database access"
-    test_port 8529 "ArangoDB" "Multi-model database access"
-    test_port 7000 "Cassandra" "NoSQL database access"
-    test_port 9042 "Cassandra CQL" "CQL native protocol"
+    # Executar todos os testes em paralelo (máximo 20 jobs simultâneos)
+    local job_count=0
+    local max_jobs=20
     
-    print_subsection "Container e Orquestração (CRÍTICO)"
-    test_port 2375 "Docker API (HTTP)" "RCE completo - container escape"
-    test_port 2376 "Docker API (HTTPS)" "RCE completo - container escape"
-    test_port 2379 "etcd Client" "Kubernetes secrets exposure"
-    test_port 2380 "etcd Peer" "etcd cluster access"
-    test_port 6443 "Kubernetes API" "Cluster takeover"
-    test_port 10250 "Kubelet" "Node access, pod execution"
-    test_port 10255 "Kubelet Read-Only" "Pod information leak"
+    for port in "${!PORTS[@]}"; do
+        test_single_port "$port" "${PORTS[$port]}" "$result_file" &
+        ((job_count++))
+        
+        # Limitar jobs paralelos para não sobrecarregar
+        if ((job_count >= max_jobs)); then
+            wait -n 2>/dev/null || wait
+            ((job_count--))
+        fi
+    done
     
-    print_subsection "Aplicações e Desenvolvimento"
-    test_port 9000 "PHP-FPM" "RCE se exposto"
-    test_port 8080 "HTTP Alt (Dev/Tomcat)" "Aplicações não protegidas"
-    test_port 8443 "HTTPS Alt" "Aplicações não protegidas"
-    test_port 3000 "Node.js Dev" "Dev server exposure"
-    test_port 5000 "Flask/Python Dev" "Dev server exposure"
-    test_port 4000 "Dev Server" "Dev server exposure"
-    test_port 9090 "Prometheus" "Metrics exposure"
-    test_port 3100 "Grafana Loki" "Log data exposure"
+    # Aguardar todos os jobs terminarem
+    wait
     
-    print_subsection "Administração e Monitoramento"
-    test_port 8000 "Django Dev" "Dev server exposure"
-    test_port 9001 "Supervisor" "Process control"
-    test_port 61616 "ActiveMQ" "Message broker access"
-    test_port 8161 "ActiveMQ Admin" "Admin console"
-    test_port 50070 "Hadoop NameNode" "HDFS access"
-    test_port 8088 "Hadoop YARN" "Resource manager"
+    # Contar resultados
+    local passed=0
+    local failed=0
     
-    print_subsection "Mail e Outros Serviços"
-    test_port 25 "SMTP" "Email relay abuse"
-    test_port 587 "SMTP Submission" "Email relay"
-    test_port 110 "POP3" "Email access"
-    test_port 143 "IMAP" "Email access"
-    test_port 21 "FTP" "Unencrypted file transfer"
-    test_port 23 "Telnet" "Unencrypted remote access"
-    test_port 69 "TFTP" "Trivial FTP (no auth)"
+    while IFS='|' read -r result port service risk category; do
+        if [ "$result" = "PASS" ]; then
+            ((passed++))
+        else
+            ((failed++))
+        fi
+    done < "$result_file"
     
-    print_subsection "Remote Access (verificar proteção)"
-    test_port 22 "SSH" "Brute force (verificar fail2ban)"
-    test_port 3389 "RDP" "Windows Remote Desktop"
-    test_port 5900 "VNC" "Remote desktop"
-    test_port 5901 "VNC :1" "Remote desktop"
+    # Atualizar contadores globais
+    TOTAL_TESTS=$((TOTAL_TESTS + passed + failed))
+    PASSED_TESTS=$((PASSED_TESTS + passed))
+    FAILED_TESTS=$((FAILED_TESTS + failed))
+    
+    # Exibir resultados agrupados por categoria
+    local categories=("db:Bancos de Dados (CRÍTICO)" "cache:Cache e Message Queue (CRÍTICO)" 
+                      "search:Search Engines e Key-Value Stores" "container:Container e Orquestração (CRÍTICO)"
+                      "app:Aplicações e Desenvolvimento" "admin:Administração e Monitoramento" 
+                      "mail:Mail e Outros Serviços" "remote:Remote Access (verificar proteção)")
+    
+    for cat_entry in "${categories[@]}"; do
+        local cat_id=$(echo "$cat_entry" | cut -d':' -f1)
+        local cat_name=$(echo "$cat_entry" | cut -d':' -f2)
+        
+        # Verificar se há resultados nesta categoria
+        if grep -q "|$cat_id$" "$result_file"; then
+            print_subsection "$cat_name"
+            
+            while IFS='|' read -r result port service risk category; do
+                if [ "$category" = "$cat_id" ]; then
+                    if [ "$result" = "FAIL" ]; then
+                        [ -n "$OUTPUT_FILE" ] && echo "[FAIL] Porta $port ($service) - EXPOSTA" >> "$OUTPUT_FILE"
+                        if [ "$FILTER" = "all" ] || [ "$FILTER" = "fail" ]; then
+                            echo -e "  ${RED}[✗]${NC} Porta $port ($service) - ${RED}EXPOSTA${NC} - $risk"
+                        fi
+                    else
+                        [ -n "$OUTPUT_FILE" ] && echo "[PASS] Porta $port ($service) - Protegida" >> "$OUTPUT_FILE"
+                        if [ "$FILTER" = "all" ] || [ "$FILTER" = "pass" ]; then
+                            echo -e "  ${GREEN}[✓]${NC} Porta $port ($service) - ${GREEN}PROTEGIDA${NC}"
+                        fi
+                    fi
+                fi
+            done < "$result_file"
+        fi
+    done
     
     echo ""
     echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -4339,6 +4404,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -u, --user-agent <num>  Seleciona User-Agent (1-15)"
             echo "  -c, --category <cat>    Executa categoria específica"
             echo "  -f, --filter <filtro>   Filtra resultados: all, pass, fail"
+            echo "  -p, --with-ports        Inclui teste de portas no 'all' (lento, ~2min)"
             echo ""
             echo "Filtros disponíveis:"
             echo "  all   - Mostra todos os testes (padrão)"
@@ -4358,6 +4424,7 @@ while [[ $# -gt 0 ]]; do
             exit 0 
             ;;
         -v|--verbose) VERBOSE=true; shift ;;
+        -p|--with-ports) WITH_PORTS=true; shift ;;
         -o|--output) OUTPUT_FILE="$2"; shift 2 ;;
         -u|--user-agent) UA="${USER_AGENTS[$(($2-1))]}"; shift 2 ;;
         -c|--category) CATEGORY="$2"; shift 2 ;;
@@ -4477,7 +4544,10 @@ case $CATEGORY in
         test_cdn_bypass
         test_xslt_injection
         test_waf_bypass
-        test_exposed_ports
+        # Testes de portas são opcionais (muito lentos ~2min)
+        if [ "$WITH_PORTS" = true ]; then
+            test_exposed_ports
+        fi
         test_ssl_tls
         test_403_bypass
         test_clickjacking
