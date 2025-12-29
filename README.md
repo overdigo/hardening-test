@@ -1,10 +1,10 @@
 # 🛡️ HTTP Header Security Testing Suite
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.1.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
-  <img src="https://img.shields.io/badge/tests-1500%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1650%2B-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/categories-60%2B-purple.svg" alt="Categories">
 </p>
 
@@ -118,6 +118,7 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 | **🆕 Time-based Blind** | **20** | SQL SLEEP, NoSQL sleep, CMDi delays |
 | **🆕 Prototype Pollution** | **20** | __proto__, constructor pollution |
 | **🆕 WAF Evasion** | **150+** | Bypass techniques for Cloudflare, Imperva, ModSec, AWS WAF, F5, Sucuri, Wordfence |
+| **🆕 Obfuscated Payloads** | **140+** | Case toggling, URL/double encoding, Unicode, comments, junk chars, wildcards |
 | User-Agents | 100+ | Bots maliciosos, scrapers, scanners |
 | Referers | 100+ | SPAM, SEO Black Hat, Injection |
 | Fake Bots | 10 | Impostores de Googlebot/Bingbot |
@@ -259,6 +260,7 @@ chmod +x head-test.sh
 | **🆕 `timebased`** | `blind`, `timeblind` | Time-based Blind Injection |
 | **🆕 `prototype`** | `protopollution`, `__proto__` | Prototype Pollution |
 | **🆕 `evasion`** | `waf-evasion`, `bypass-waf` | WAF Evasion Techniques (150+ payloads) |
+| **🆕 `obfuscated`** | `obfuscation`, `encoded` | Obfuscated Payloads (140+ variants) |
 | `useragent` | - | User-Agent tests |
 | `referer` | `referer-all` | Todos os referers maliciosos |
 | `referer-spam` | `spam` | Apenas referers SPAM |
@@ -584,6 +586,17 @@ hardening-test/
 ---
 
 ## 📝 Changelog
+
+### v5.1.0 (2024-12-29)
+- 🆕 **Obfuscated Payloads** (140+ testes)
+  - XSS com case toggling, URL encoding, double encoding, Unicode, HTML entities
+  - XSS com comments, junk chars, whitespace/tabs/newlines, dynamic payloads
+  - SQLi com case toggling, encoding, comments, whitespace alternatives
+  - Command Injection com wildcards, variable injection, quote concatenation, backslash
+  - Path Traversal com encoding, Unicode overlong UTF-8, null bytes
+  - SSTI, XXE, LDAP, Open Redirect com variantes ofuscadas
+- 🔧 Expansão para 1650+ testes totais (60 funções de teste)
+- 🔧 Atualização da categoria WAF Evasion com bypasses específicos
 
 ### v5.0.0 (2024-12-29)
 - 🆕 **JWT Attacks** (30 testes)

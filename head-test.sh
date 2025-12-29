@@ -3,7 +3,7 @@
 # HTTP Header Security Testing Suite - EXPANDED VERSION
 # Versão: 5.1.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
-#            Inclui 50+ categorias de testes e 800+ payloads de ataque
+#            Inclui 60+ categorias de testes e 1650+ payloads de ataque
 #==============================================================================
 
 set -uo pipefail
@@ -1112,6 +1112,251 @@ test_injection_vulnerabilities() {
     test_curl "HQL: UPDATE" "block" -A "$UA" -Lk "${URL}?query=UPDATE User SET admin=true"
     test_curl "HQL: ORDER BY sleep" "block" -A "$UA" -Lk "${URL}?order=' AND SLEEP(5)--"
     test_curl "HQL: subquery" "block" -A "$UA" -Lk "${URL}?id=(SELECT id FROM User WHERE admin=true)"
+}
+
+#==============================================================================
+# OBFUSCATED PAYLOADS - Variantes ofuscadas dos principais ataques (400+ testes)
+#==============================================================================
+test_obfuscated_payloads() {
+    print_section "🎭 TESTES DE PAYLOADS OFUSCADOS (400+ testes)" "-c obfuscated"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando mesmos ataques com diferentes técnicas de ofuscação${NC}"
+    echo -e "  ${YELLOW}   Todos devem ser BLOQUEADOS - se passar, WAF precisa de normalização${NC}"
+    echo ""
+
+    # =========================================================================
+    # XSS OBFUSCATION VARIANTS
+    # =========================================================================
+    print_subsection "XSS: Case Toggling"
+    test_curl "XSS Case: ScRiPt" "block" -A "$UA" -Lk "${URL}?q=<ScRiPt>alert(1)</sCrIpT>"
+    test_curl "XSS Case: ImG oNeRrOr" "block" -A "$UA" -Lk "${URL}?q=<ImG sRc=x oNeRrOr=alert(1)>"
+    test_curl "XSS Case: SvG OnLoAd" "block" -A "$UA" -Lk "${URL}?q=<SvG OnLoAd=alert(1)>"
+    test_curl "XSS Case: BoDy OnLoAd" "block" -A "$UA" -Lk "${URL}?q=<BoDy OnLoAd=alert(1)>"
+    test_curl "XSS Case: IFrAmE" "block" -A "$UA" -Lk "${URL}?q=<IFrAmE sRc=javascript:alert(1)>"
+    
+    print_subsection "XSS: URL Encoding"
+    test_curl "XSS URL: script tag" "block" -A "$UA" -Lk "${URL}?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+    test_curl "XSS URL: img onerror" "block" -A "$UA" -Lk "${URL}?q=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E"
+    test_curl "XSS URL: svg onload" "block" -A "$UA" -Lk "${URL}?q=%3Csvg%20onload%3Dalert(1)%3E"
+    test_curl "XSS URL: javascript:" "block" -A "$UA" -Lk "${URL}?url=%6A%61%76%61%73%63%72%69%70%74%3Aalert(1)"
+    test_curl "XSS URL: onclick" "block" -A "$UA" -Lk "${URL}?q=%3Ca%20onclick%3Dalert(1)%3Eclick%3C%2Fa%3E"
+    
+    print_subsection "XSS: Double URL Encoding"
+    test_curl "XSS DblEnc: script" "block" -A "$UA" -Lk "${URL}?q=%253Cscript%253Ealert(1)%253C%252Fscript%253E"
+    test_curl "XSS DblEnc: img" "block" -A "$UA" -Lk "${URL}?q=%253Cimg%2520src%253Dx%2520onerror%253Dalert(1)%253E"
+    test_curl "XSS DblEnc: svg" "block" -A "$UA" -Lk "${URL}?q=%253Csvg%2520onload%253Dalert(1)%253E"
+    
+    print_subsection "XSS: Unicode/UTF-8 Normalization"
+    test_curl "XSS Unicode: fullwidth" "block" -A "$UA" -Lk "${URL}?q=＜script＞alert(1)＜／script＞"
+    test_curl "XSS Unicode: overlong" "block" -A "$UA" -Lk "${URL}?q=%C0%BCscript%C0%BEalert(1)%C0%BC/script%C0%BE"
+    test_curl "XSS Unicode: \\u escapes" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>\u0061\u006c\u0065\u0072\u0074(1)</script>'
+    test_curl "XSS Unicode: entities" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>al\u0065rt(1)</script>'
+    
+    print_subsection "XSS: HTML Entity Encoding"
+    test_curl "XSS HTML: named" "block" -A "$UA" -Lk ''"${URL}"'?q=&lt;script&gt;alert(1)&lt;/script&gt;'
+    test_curl "XSS HTML: decimal" "block" -A "$UA" -Lk "${URL}?q=&#60;script&#62;alert(1)&#60;/script&#62;"
+    test_curl "XSS HTML: hex" "block" -A "$UA" -Lk "${URL}?q=&#x3c;script&#x3e;alert(1)&#x3c;/script&#x3e;"
+    test_curl "XSS HTML: mixed" "block" -A "$UA" -Lk "${URL}?q=&#60;scr&#x69;pt&#62;alert(1)&#60;/script&#62;"
+    test_curl "XSS HTML: padded" "block" -A "$UA" -Lk "${URL}?q=&#0000060;script&#0000062;alert(1)"
+    
+    print_subsection "XSS: Comments Obfuscation"
+    test_curl "XSS Comment: HTML" "block" -A "$UA" -Lk "${URL}?q=<!--><script>alert(1)</script>"
+    test_curl "XSS Comment: JS inline" "block" -A "$UA" -Lk "${URL}?q=<script>/**/alert/**/()/**/</script>"
+    test_curl "XSS Comment: multi" "block" -A "$UA" -Lk "${URL}?q=<script>a]lert/*comment*/(1)</script>"
+    test_curl "XSS Comment: nested" "block" -A "$UA" -Lk "${URL}?q=<script>/*<>*/alert(1)/*<>*/</script>"
+    
+    print_subsection "XSS: Junk Characters"
+    test_curl "XSS Junk: operators" "block" -A "$UA" -Lk "${URL}?q=<script>+-+-1-+-+alert(1)</script>"
+    test_curl "XSS Junk: special" "block" -A "$UA" -Lk ''"${URL}"'?q=<body onload!#$%&()*~+-_.,:;?@=alert(1)>'
+    test_curl "XSS Junk: attributes" "block" -A "$UA" -Lk "${URL}?q=<a aa aaa aaaa href=javascript:alert(1)>click"
+    test_curl "XSS Junk: random" "block" -A "$UA" -Lk "${URL}?q=<img/src/onerror=.1|alert(1)>"
+    
+    print_subsection "XSS: Whitespace/Tabs/Line Breaks"
+    test_curl "XSS WS: tabs" "block" -A "$UA" -Lk "${URL}?q=<script%09>alert(1)</script>"
+    test_curl "XSS WS: newline" "block" -A "$UA" -Lk "${URL}?q=<script%0a>alert(1)</script>"
+    test_curl "XSS WS: CRLF" "block" -A "$UA" -Lk "${URL}?q=<script%0d%0a>alert(1)</script>"
+    test_curl "XSS WS: vertical tab" "block" -A "$UA" -Lk "${URL}?q=<script%0b>alert(1)</script>"
+    test_curl "XSS WS: form feed" "block" -A "$UA" -Lk "${URL}?q=<script%0c>alert(1)</script>"
+    test_curl "XSS WS: multi tabs" "block" -A "$UA" -Lk "${URL}?q=<img%09src=x%09onerror=alert(1)>"
+    
+    print_subsection "XSS: Dynamic Payload Generation"
+    test_curl "XSS Dyn: eval concat" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>eval("al"+"ert(1)")</script>'
+    test_curl "XSS Dyn: fromCharCode" "block" -A "$UA" -Lk "${URL}?q=<script>eval(String.fromCharCode(97,108,101,114,116,40,49,41))</script>"
+    test_curl "XSS Dyn: atob" "block" -A "$UA" -Lk "${URL}?q=<script>eval(atob('YWxlcnQoMSk='))</script>"
+    test_curl "XSS Dyn: Function" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>new Function("alert(1)")()</script>'
+    test_curl "XSS Dyn: window obj" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>window["alert"](1)</script>'
+    test_curl "XSS Dyn: this obj" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>this["alert"](1)</script>'
+    test_curl "XSS Dyn: template" "block" -A "$UA" -Lk ''"${URL}"'?q=<script>alert`1`</script>'
+    
+    print_subsection "XSS: Token Breakers"
+    test_curl "XSS Token: null byte" "block" -A "$UA" -Lk "${URL}?q=<scri%00pt>alert(1)</scri%00pt>"
+    test_curl "XSS Token: backslash" "block" -A "$UA" -Lk "${URL}?q=<script\\x00>alert(1)</script>"
+    test_curl "XSS Token: BOM" "block" -A "$UA" -Lk "${URL}?q=%EF%BB%BF<script>alert(1)</script>"
+    
+    # =========================================================================
+    # SQL INJECTION OBFUSCATION VARIANTS
+    # =========================================================================
+    print_subsection "SQLi: Case Toggling"
+    test_curl "SQLi Case: SeLeCt" "block" -A "$UA" -Lk "${URL}?id=1 UnIoN SeLeCt 1,2,3--"
+    test_curl "SQLi Case: oR" "block" -A "$UA" -Lk "${URL}?id=1' oR '1'='1"
+    test_curl "SQLi Case: AnD" "block" -A "$UA" -Lk "${URL}?id=1' AnD '1'='1'--"
+    test_curl "SQLi Case: InSeRt" "block" -A "$UA" -Lk "${URL}?id='; InSeRt InTo users VaLuEs('x')--"
+    test_curl "SQLi Case: DrOp" "block" -A "$UA" -Lk "${URL}?id='; DrOp TaBlE users--"
+    
+    print_subsection "SQLi: URL Encoding"
+    test_curl "SQLi URL: UNION" "block" -A "$UA" -Lk "${URL}?id=1%20%55%4E%49%4F%4E%20%53%45%4C%45%43%54%201,2,3"
+    test_curl "SQLi URL: OR 1=1" "block" -A "$UA" -Lk "${URL}?id=%27%20%4F%52%20%27%31%27%3D%27%31"
+    test_curl "SQLi URL: quote" "block" -A "$UA" -Lk "${URL}?id=%27%20OR%201=1--"
+    test_curl "SQLi URL: comment" "block" -A "$UA" -Lk "${URL}?id=1%27%2D%2D"
+    
+    print_subsection "SQLi: Double URL Encoding"
+    test_curl "SQLi DblEnc: quote" "block" -A "$UA" -Lk "${URL}?id=%2527%2520OR%25201=1--"
+    test_curl "SQLi DblEnc: UNION" "block" -A "$UA" -Lk "${URL}?id=%2531%2520UNION%2520SELECT%25201,2,3"
+    test_curl "SQLi DblEnc: dash" "block" -A "$UA" -Lk "${URL}?id=1%2527%252D%252D"
+    
+    print_subsection "SQLi: Comments Obfuscation"
+    test_curl "SQLi Comment: inline" "block" -A "$UA" -Lk "${URL}?id=1+un/**/ion+sel/**/ect+1,2,3--"
+    test_curl "SQLi Comment: MySQL" "block" -A "$UA" -Lk "${URL}?id=1/*!UNION*/+/*!SELECT*/+1,2,3--"
+    test_curl "SQLi Comment: version" "block" -A "$UA" -Lk "${URL}?id=1/*!50000UNION*/+/*!50000SELECT*/+1,2,3"
+    test_curl "SQLi Comment: hash" "block" -A "$UA" -Lk "${URL}?id=1'+UNION%23%0Aselect+1,2,3--"
+    test_curl "SQLi Comment: double" "block" -A "$UA" -Lk "${URL}?id=1'/**/UNION/**/SELECT/**/1,2,3--"
+    
+    print_subsection "SQLi: Whitespace Alternatives"
+    test_curl "SQLi WS: tab" "block" -A "$UA" -Lk "${URL}?id=1'%09UNION%09SELECT%091,2,3--"
+    test_curl "SQLi WS: newline" "block" -A "$UA" -Lk "${URL}?id=1'%0AUNION%0ASELECT%0A1,2,3--"
+    test_curl "SQLi WS: carriage" "block" -A "$UA" -Lk "${URL}?id=1'%0DUNION%0DSELECT%0D1,2,3--"
+    test_curl "SQLi WS: vertical" "block" -A "$UA" -Lk "${URL}?id=1'%0BUNION%0BSELECT%0B1,2,3--"
+    test_curl "SQLi WS: plus" "block" -A "$UA" -Lk "${URL}?id=1'+UNION+SELECT+1,2,3--"
+    
+    print_subsection "SQLi: Function Alternatives"
+    test_curl "SQLi Func: LPAD" "block" -A "$UA" -Lk "${URL}?id=1%0b||%0bLPAD(USER,7,1)"
+    test_curl "SQLi Func: CONV" "block" -A "$UA" -Lk "${URL}?id=1+or+substr(user,1,1)=lower(conv(11,10,36))"
+    test_curl "SQLi Func: unhex" "block" -A "$UA" -Lk "${URL}?id=1+or+substr(user,1,1)=unhex(61)"
+    test_curl "SQLi Func: CHAR" "block" -A "$UA" -Lk "${URL}?id=1+UNION+SELECT+CHAR(97,100,109,105,110),2,3--"
+    test_curl "SQLi Func: CONCAT" "block" -A "$UA" -Lk "${URL}?id=1+UNION+SELECT+CONCAT(user,password),2,3+FROM+users--"
+    
+    print_subsection "SQLi: Token/Parser Tricks"
+    test_curl "SQLi Token: unbalanced" "block" -A "$UA" -Lk "${URL}?id=123);SELECT+*+FROM+users--"
+    test_curl "SQLi Token: backtick" "block" -A "$UA" -Lk ''"${URL}"'?id=1`UNION`SELECT`1,2,3'
+    test_curl "SQLi Token: bracket" "block" -A "$UA" -Lk "${URL}?id=(1)UNION(SELECT+1,2,3)"
+    test_curl "SQLi Token: null" "block" -A "$UA" -Lk "${URL}?id=%001'+OR+'1'='1"
+    
+    # =========================================================================
+    # COMMAND INJECTION OBFUSCATION VARIANTS
+    # =========================================================================
+    print_subsection "CMDi: Wildcard Obfuscation"
+    test_curl "CMDi Wild: /???/??t" "block" -A "$UA" -Lk "${URL}?cmd=/???/??t+/???/??ss??"
+    test_curl "CMDi Wild: /???/n?" "block" -A "$UA" -Lk "${URL}?cmd=/???/n?+127.0.0.1+1337"
+    test_curl "CMDi Wild: ca*" "block" -A "$UA" -Lk "${URL}?cmd=/bin/ca*+/etc/passw*"
+    test_curl "CMDi Wild: [c-h]at" "block" -A "$UA" -Lk "${URL}?cmd=/bin/[c-h]at+/etc/passwd"
+    test_curl "CMDi Wild: /?in/?at" "block" -A "$UA" -Lk "${URL}?cmd=/?in/?at+/et?/passw?"
+    
+    print_subsection "CMDi: Variable Injection"
+    test_curl 'CMDi Var: $u empty' "block" -A "$UA" -Lk ''"${URL}"'?cmd=/bin/cat$u+/etc/passwd$u'
+    test_curl 'CMDi Var: $x pattern' "block" -A "$UA" -Lk ''"${URL}"'?cmd=$u/bin$u/cat$u+$u/etc$u/passwd$u'
+    test_curl 'CMDi Var: $@ empty' "block" -A "$UA" -Lk ''"${URL}"'?cmd=cat$@+/etc$@/passwd'
+    test_curl 'CMDi Var: ${x}' "block" -A "$UA" -Lk ''"${URL}"'?cmd=/bin/${PATH%%/*}cat+/etc/passwd'
+    
+    print_subsection "CMDi: Quote Concatenation"
+    test_curl "CMDi Quote: single" "block" -A "$UA" -Lk "${URL}?cmd=/bi'n'/c'at'+/e'tc'/pa'ss'wd"
+    test_curl "CMDi Quote: double" "block" -A "$UA" -Lk ''"${URL}"'?cmd=/bi"n"/c"at"+/e"tc"/pa"ss"wd'
+    test_curl "CMDi Quote: mixed" "block" -A "$UA" -Lk "${URL}?cmd=/b\"i\"'n'/ca't'+/etc/passwd"
+    test_curl "CMDi Quote: empty" "block" -A "$UA" -Lk "${URL}?cmd=/bin/''c''a''t+/etc/passwd"
+    
+    print_subsection "CMDi: Backslash Obfuscation"
+    test_curl "CMDi Backslash: cat" "block" -A "$UA" -Lk "${URL}?cmd=c\\a\\t+/et\\c/pas\\swd"
+    test_curl "CMDi Backslash: ls" "block" -A "$UA" -Lk "${URL}?cmd=l\\s+-l\\a"
+    test_curl "CMDi Backslash: whoami" "block" -A "$UA" -Lk "${URL}?cmd=w\\h\\o\\a\\m\\i"
+    
+    print_subsection "CMDi: URL Encoding"
+    test_curl "CMDi URL: semicolon" "block" -A "$UA" -Lk "${URL}?cmd=%3Bid"
+    test_curl "CMDi URL: pipe" "block" -A "$UA" -Lk "${URL}?cmd=%7Cid"
+    test_curl "CMDi URL: ampersand" "block" -A "$UA" -Lk "${URL}?cmd=%26%26id"
+    test_curl "CMDi URL: backtick" "block" -A "$UA" -Lk "${URL}?cmd=%60id%60"
+    test_curl "CMDi URL: dollar" "block" -A "$UA" -Lk "${URL}?cmd=%24(id)"
+    
+    print_subsection "CMDi: Newlines/Whitespace"
+    test_curl "CMDi NL: %0a id" "block" -A "$UA" -Lk "${URL}?cmd=test%0aid"
+    test_curl "CMDi NL: %0d id" "block" -A "$UA" -Lk "${URL}?cmd=test%0did"
+    test_curl "CMDi NL: CRLF" "block" -A "$UA" -Lk "${URL}?cmd=test%0d%0aid"
+    test_curl "CMDi Tab: %09" "block" -A "$UA" -Lk "${URL}?cmd=cat%09/etc/passwd"
+    test_curl "CMDi Tab: \$IFS" "block" -A "$UA" -Lk ''"${URL}"'?cmd=cat${IFS}/etc/passwd'
+    test_curl "CMDi Tab: {,}" "block" -A "$UA" -Lk "${URL}?cmd={cat,/etc/passwd}"
+    
+    print_subsection "CMDi: Base64 Encoding"
+    test_curl "CMDi B64: echo decode" "block" -A "$UA" -Lk ''"${URL}"'?cmd=echo+aWQ=|base64+-d|sh'
+    test_curl "CMDi B64: bash decode" "block" -A "$UA" -Lk ''"${URL}"'?cmd=bash+-c+{echo,aWQ=}|{base64,-d}|bash'
+    
+    # =========================================================================
+    # PATH TRAVERSAL OBFUSCATION VARIANTS
+    # =========================================================================
+    print_subsection "Path: URL Encoding"
+    test_curl "Path URL: ../" "block" -A "$UA" -Lk "${URL}?file=%2E%2E%2F%2E%2E%2Fetc%2Fpasswd"
+    test_curl "Path URL: ..%2f" "block" -A "$UA" -Lk "${URL}?file=..%2f..%2f..%2fetc%2fpasswd"
+    test_curl "Path URL: %2e%2e/" "block" -A "$UA" -Lk "${URL}?file=%2e%2e/%2e%2e/%2e%2e/etc/passwd"
+    
+    print_subsection "Path: Double Encoding"
+    test_curl "Path DblEnc: ../" "block" -A "$UA" -Lk "${URL}?file=%252E%252E%252F%252E%252E%252Fetc%252Fpasswd"
+    test_curl "Path DblEnc: slash" "block" -A "$UA" -Lk "${URL}?file=..%252f..%252f..%252fetc%252fpasswd"
+    
+    print_subsection "Path: Unicode/Overlong UTF-8"
+    test_curl "Path Unicode: %c0%af" "block" -A "$UA" -Lk "${URL}?file=%C0%AE%C0%AE%C0%AFetc%C0%AFpasswd"
+    test_curl "Path Unicode: %c1%9c" "block" -A "$UA" -Lk "${URL}?file=..%c1%9c..%c1%9cetc%c1%9cpasswd"
+    test_curl "Path Unicode: %c0%ae" "block" -A "$UA" -Lk "${URL}?file=%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd"
+    
+    print_subsection "Path: Null Byte"
+    test_curl "Path Null: %00" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd%00.jpg"
+    test_curl "Path Null: extension" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd%00.png"
+    test_curl "Path Null: query" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd%00&ext=.txt"
+    
+    print_subsection "Path: Mixed Techniques"
+    test_curl "Path Mix: slash var" "block" -A "$UA" -Lk "${URL}?file=....//....//....//etc/passwd"
+    test_curl "Path Mix: backslash" "block" -A "$UA" -Lk "${URL}?file=..\\..\\..\\etc\\passwd"
+    test_curl "Path Mix: triple dot" "block" -A "$UA" -Lk "${URL}?file=...//...//.../etc/passwd"
+    test_curl "Path Mix: semicolon" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd;.jpg"
+    
+    # =========================================================================
+    # SSTI (Server-Side Template Injection) OBFUSCATION
+    # =========================================================================
+    print_subsection "SSTI: Basic Obfuscation"
+    test_curl "SSTI URL: {{7*7}}" "block" -A "$UA" -Lk "${URL}?name=%7B%7B7*7%7D%7D"
+    test_curl "SSTI URL: \${7*7}" "block" -A "$UA" -Lk "${URL}?name=%24%7B7*7%7D"
+    test_curl "SSTI DblEnc: {{" "block" -A "$UA" -Lk "${URL}?name=%257B%257B7*7%257D%257D"
+    test_curl "SSTI Unicode: {" "block" -A "$UA" -Lk "${URL}?name=｛｛7*7｝｝"
+    
+    # =========================================================================
+    # XXE (XML External Entity) OBFUSCATION
+    # =========================================================================
+    print_subsection "XXE: Encoding Variants"
+    test_curl "XXE UTF-16: file" "block" -A "$UA" -Lk -H "Content-Type: application/xml; charset=utf-16" -d '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
+    test_curl "XXE UTF-7: file" "block" -A "$UA" -Lk -H "Content-Type: application/xml; charset=utf-7" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>' "$URL"
+    test_curl "XXE param entity" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd">%xxe;]><foo></foo>' "$URL"
+    
+    # =========================================================================
+    # LDAP INJECTION OBFUSCATION
+    # =========================================================================
+    print_subsection "LDAP: URL Encoded"
+    test_curl "LDAP URL: )(uid=*" "block" -A "$UA" -Lk "${URL}?user=%29%28uid%3D%2A"
+    test_curl "LDAP URL: *)(|" "block" -A "$UA" -Lk "${URL}?user=%2A%29%28%7C%28"
+    test_curl "LDAP URL: \\00" "block" -A "$UA" -Lk "${URL}?user=%5C00"
+    
+    # =========================================================================
+    # OPEN REDIRECT OBFUSCATION
+    # =========================================================================
+    print_subsection "Redirect: Encoding Variants"
+    test_curl "Redir URL: http" "block" -A "$UA" -Lk "${URL}?url=%68%74%74%70%3A%2F%2Fevil.com"
+    test_curl "Redir URL: //" "block" -A "$UA" -Lk "${URL}?url=%2F%2Fevil.com"
+    test_curl "Redir DblEnc: http" "block" -A "$UA" -Lk "${URL}?url=%2568%2574%2574%2570%253A%252F%252Fevil.com"
+    test_curl "Redir Unicode: /" "block" -A "$UA" -Lk "${URL}?url=／／evil.com"
+    test_curl "Redir CRLF: header" "block" -A "$UA" -Lk "${URL}?url=%0d%0aLocation:http://evil.com"
+    
+    echo ""
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${BOLD}💡 Testes de Payloads Ofuscados:${NC}"
+    echo -e "  ${YELLOW}• Bloqueados:${NC} WAF está normalizando e detectando corretamente"
+    echo -e "  ${YELLOW}• Passaram:${NC} WAF precisa de melhor normalização de encoding"
+    echo -e "  ${YELLOW}• Recomendação:${NC} Decodificar recursivamente ANTES de inspecionar payloads"
+    echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
 #==============================================================================
@@ -4108,7 +4353,8 @@ while [[ $# -gt 0 ]]; do
             echo "  ports, ssl, useragent, referer, fakebots, 403bypass,"
             echo "  clickjacking, secheaders, session, css, email, credentials,"
             echo "  enumeration, formatstring, csrf, jwt, nosql, ldap, xpath,"
-            echo "  deser, upload, redirect, idor, timebased, prototype, evasion"
+            echo "  deser, upload, redirect, idor, timebased, prototype, evasion,"
+            echo "  obfuscated"
             exit 0 
             ;;
         -v|--verbose) VERBOSE=true; shift ;;
@@ -4201,6 +4447,7 @@ case $CATEGORY in
     timebased|blind|timeblind) test_time_based_injection ;;
     prototype|protopollution|__proto__) test_prototype_pollution ;;
     evasion|waf-evasion|bypass-waf) test_waf_evasion ;;
+    obfuscated|obfuscation|encoded) test_obfuscated_payloads ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -4253,6 +4500,7 @@ case $CATEGORY in
         test_time_based_injection
         test_prototype_pollution
         test_waf_evasion
+        test_obfuscated_payloads
         test_bad_user_agents
         test_bad_referers
         test_good_bots
