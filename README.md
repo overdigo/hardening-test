@@ -200,7 +200,7 @@ chmod +x head-test.sh
 | `-u, --user-agent <num>` | Seleciona User-Agent (1-15) |
 | `-c, --category <cat>` | Executa categoria específica |
 | `-f, --filter <filtro>` | Filtra resultados: all, pass, fail |
-| `--with-ports` | Inclui teste de portas no `all` (opcional, lento) |
+| `-p, --with-ports` | Inclui teste de portas no `all` (opcional, lento) |
 
 ---
 
@@ -502,7 +502,7 @@ Verifica proteções contra CSRF:
 
 > **⚚️ Nota**: O teste de portas agora executa em paralelo (até 20 conexões simultâneas), 
 > reduzindo o tempo de ~2 minutos para ~5-10 segundos. Por padrão, não é incluído no `all` 
-> para manter a execução rápida. Use `--with-ports` ou `-c ports` explicitamente.
+> para manter a execução rápida. Use `-p, --with-ports` ou `-c ports` explicitamente.
 
 ---
 
@@ -614,7 +614,7 @@ hardening-test/
   - SSTI, XXE, LDAP, Open Redirect com variantes ofuscadas
 - 🔧 **Otimização de teste de portas**:
   - Execução paralela (20 conexões simultâneas) - de ~2min para ~5-10s
-  - Nova flag `--with-ports` para incluir no `all` (opcional)
+  - Nova flag `-p, --with-ports` para incluir no `all` (opcional)
   - Por padrão, `-c all` não inclui port scan para maior velocidade
 - 🔧 Expansão para 1650+ testes totais (60 funções de teste)
 - 🔧 Atualização da categoria WAF Evasion com bypasses específicos
