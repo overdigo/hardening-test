@@ -1,0 +1,72 @@
+# Referers de gambling/apostas que prejudicam SEO
+# Sites de apostas usados em ataques de negative SEO/spam referer
+# Blocking these protects site reputation and SEO rankings
+
+# Casinos online
+888casino.com
+betway.com
+bet365.com
+williamhill.com
+ladbrokes.com
+pokerstars.com
+partypoker.com
+unibet.com
+bwin.com
+betfair.com
+padddypower.com
+coral.co.uk
+betfred.com
+skybet.com
+borgataonline.com
+
+# Apostas esportivas
+stake.com
+1xbet.com
+pinnacle.com
+bovada.lv
+betonline.ag
+mybookie.ag
+betway.com
+draftkings.com
+fanduel.com
+caesars.com
+pointsbet.com
+
+# Cassinos brasileiros/portugueses
+sportingbet.com
+betano.com
+rivalo.com
+betboo.com
+22bet.com
+parimatch.com
+betsson.com
+leovegas.com
+mrgreen.com
+casumo.com
+
+# Slots e máquinas
+slotocash.im
+jackpotcity.com
+spinpalace.com
+rubyfortune.com
+luxurycasino.com
+
+# Poker
+wsop.com
+globalpoker.com
+ignitioncasino.eu
+americascardroom.eu
+
+# Loteria e bingo
+lottery.com
+bingomania.com
+bingohall.com
+
+# Variações com subdomínios
+www.bet365.com
+m.bet365.com
+www.1xbet.com
+www.stake.com
+casino.bet365.com
+poker.888.com
+sports.betway.com

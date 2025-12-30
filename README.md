@@ -182,6 +182,70 @@ chmod +x head-test.sh
 
 ---
 
+## 🐳 Docker (com HTTP/3)
+
+O projeto inclui suporte a Docker para rodar os testes com **HTTP/3 (QUIC)** nativo, usando a imagem `ymuski/curl-http3` como base.
+
+### Build da Imagem
+
+```bash
+./docker-run.sh build
+```
+
+### Executar Testes
+
+```bash
+# Teste completo
+./docker-run.sh test https://meusite.com
+
+# Teste de categoria específica
+./docker-run.sh test https://meusite.com -c header
+
+# Apenas falhas
+./docker-run.sh test https://meusite.com -f fail -c all
+```
+
+### Verificar Suporte HTTP/3
+
+```bash
+# Verifica se o site suporta HTTP/3
+./docker-run.sh http3 https://cloudflare.com
+
+# Ou execute curl diretamente
+./docker-run.sh curl -IL --http3 -k https://cloudflare.com
+```
+
+### Shell Interativo
+
+```bash
+./docker-run.sh shell
+```
+
+Dentro do container você pode executar comandos curl com HTTP/3:
+
+```bash
+curl -IL --http3 -k https://cloudflare.com
+```
+
+### Comandos Disponíveis
+
+| Comando | Descrição |
+|---------|-----------|
+| `./docker-run.sh build` | Constrói a imagem Docker |
+| `./docker-run.sh test <URL> [OPTIONS]` | Executa testes na URL |
+| `./docker-run.sh http3 <URL>` | Verifica suporte HTTP/3 |
+| `./docker-run.sh curl <ARGS>` | Executa curl com HTTP/3 |
+| `./docker-run.sh shell` | Shell interativo |
+
+### Por que usar Docker?
+
+- ✅ **HTTP/3 nativo**: curl compilado com nghttp3 e ngtcp2
+- ✅ **Ambiente isolado**: Não afeta o sistema host
+- ✅ **Reprodutível**: Mesmas versões em qualquer máquina
+- ✅ **Sem dependências**: Tudo já está instalado na imagem
+
+---
+
 ## 📖 Uso
 
 ### Sintaxe básica
@@ -590,7 +654,10 @@ table inet filter {
 
 ```
 hardening-test/
-├── head-test.sh           # Script principal (1200+ testes)
+├── head-test.sh           # Script principal (1650+ testes)
+├── Dockerfile             # Docker com suporte a HTTP/3
+├── docker-run.sh          # Script auxiliar Docker
+├── .dockerignore          # Exclusões para o build
 ├── README.md              # Esta documentação
 ├── LICENSE                # Licença MIT
 └── lists/                 # Listas de payloads

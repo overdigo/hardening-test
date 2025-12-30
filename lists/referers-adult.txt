@@ -1,0 +1,56 @@
+# Referers de conteúdo adulto que prejudicam SEO
+# Sites adultos usados em ataques de negative SEO/spam referer
+# Blocking these protects site reputation and SEO rankings
+
+# Domínios genéricos adultos
+pornhub.com
+xvideos.com
+xnxx.com
+xhamster.com
+redtube.com
+youporn.com
+tube8.com
+spankbang.com
+beeg.com
+brazzers.com
+naughtyamerica.com
+realitykings.com
+bangbros.com
+mofos.com
+fakehub.com
+
+# Variações com subdomínios
+www.pornhub.com
+m.pornhub.com
+es.pornhub.com
+pt.pornhub.com
+www.xvideos.com
+m.xvideos.com
+www.xnxx.com
+www.xhamster.com
+
+# Live cam sites
+chaturbate.com
+livejasmin.com
+bongacams.com
+stripchat.com
+cam4.com
+myfreecams.com
+camsoda.com
+
+# Dating/hookup sites usados em spam
+adultfriendfinder.com
+ashleymadison.com
+fling.com
+benaughty.com
+together2night.com
+
+# Outros domínios adultos comuns em spam referer
+porn.com
+sex.com
+xxx.com
+adult.com
+erotic.com
+nude.com
+naked.com
+hentai.com
