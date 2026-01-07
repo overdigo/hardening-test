@@ -52,6 +52,41 @@ if [ -f "${SCRIPT_DIR}/lfi-rfi-tester.sh" ]; then
     source "${SCRIPT_DIR}/lfi-rfi-tester.sh"
 fi
 
+# Importar módulo SSRF Tester
+if [ -f "${SCRIPT_DIR}/ssrf-tester.sh" ]; then
+    source "${SCRIPT_DIR}/ssrf-tester.sh"
+fi
+
+# Importar módulo XXE Tester
+if [ -f "${SCRIPT_DIR}/xxe-tester.sh" ]; then
+    source "${SCRIPT_DIR}/xxe-tester.sh"
+fi
+
+# Importar módulo SSTI Tester
+if [ -f "${SCRIPT_DIR}/ssti-tester.sh" ]; then
+    source "${SCRIPT_DIR}/ssti-tester.sh"
+fi
+
+# Importar módulo Path Traversal Tester
+if [ -f "${SCRIPT_DIR}/path-traversal-tester.sh" ]; then
+    source "${SCRIPT_DIR}/path-traversal-tester.sh"
+fi
+
+# Importar módulo File Upload Tester
+if [ -f "${SCRIPT_DIR}/file-upload-tester.sh" ]; then
+    source "${SCRIPT_DIR}/file-upload-tester.sh"
+fi
+
+# Importar módulo CSRF Tester
+if [ -f "${SCRIPT_DIR}/csrf-tester.sh" ]; then
+    source "${SCRIPT_DIR}/csrf-tester.sh"
+fi
+
+# Importar módulo Bots Tester
+if [ -f "${SCRIPT_DIR}/bots-tester.sh" ]; then
+    source "${SCRIPT_DIR}/bots-tester.sh"
+fi
+
 # Paralelização para velocidade 5
 PARALLEL_JOBS=0
 MAX_PARALLEL=2  # Número de requests paralelos na velocidade 5
@@ -682,49 +717,11 @@ test_bad_referers() {
 }
 
 #==============================================================================
-# BOTS LEGÍTIMOS
+# BOTS - Funções movidas para bots-tester.sh
+# Ver: test_good_bots(), test_fake_bots(), test_ai_bots()
 #==============================================================================
-test_good_bots() {
-    print_section "✅ TESTES DE BOTS LEGÍTIMOS (devem passar)" "-c useragent"
-    
-    test_curl "Googlebot Mobile" "allow" -Lk -A "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) AppleWebKit/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
-    test_curl "Googlebot Desktop" "allow" -Lk -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
-    test_curl "Bingbot" "allow" -Lk -A "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" "$URL"
-    test_curl "DuckDuckBot" "allow" -Lk -A "DuckDuckBot/1.0; (+http://duckduckgo.com/duckduckbot.html)" "$URL"
-    test_curl "Facebot" "allow" -Lk -A "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)" "$URL"
-    test_curl "Twitterbot" "allow" -Lk -A "Twitterbot/1.0" "$URL"
-    test_curl "LinkedInBot" "allow" -Lk -A "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)" "$URL"
-    test_curl "Slackbot" "allow" -Lk -A "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" "$URL"
-    test_curl "WhatsApp" "allow" -Lk -A "WhatsApp/2.23.20.0" "$URL"
-    test_curl "Telegrambot" "allow" -Lk -A "TelegramBot (like TwitterBot)" "$URL"
-}
-
-#==============================================================================
-# FAKE BOTS - Bots que se passam por Google/Bing (devem ser BLOQUEADOS)
-#==============================================================================
-test_fake_bots() {
-    print_section "🎭 TESTES DE FAKE BOTS (Impostores - devem ser BLOQUEADOS)" "-c fakebots"
-    
-    echo -e "  ${YELLOW}ℹ️  Estes são bots FALSOS que tentam se passar por crawlers legítimos${NC}"
-    echo -e "  ${YELLOW}   Servidores bem configurados devem verificar o IP de origem e bloquear${NC}"
-    echo ""
-    
-    # Fake Googlebot - usando User-Agent real mas de IP não autorizado
-    test_curl "FAKE Googlebot Mobile" "block" -Lk -A "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
-    test_curl "FAKE Googlebot Desktop" "block" -Lk -A "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" "$URL"
-    test_curl "FAKE Googlebot-Image" "block" -Lk -A "Googlebot-Image/1.0" "$URL"
-    test_curl "FAKE Googlebot-News" "block" -Lk -A "Googlebot-News" "$URL"
-    test_curl "FAKE Googlebot-Video" "block" -Lk -A "Googlebot-Video/1.0" "$URL"
-    
-    # Fake Bingbot
-    test_curl "FAKE Bingbot" "block" -Lk -A "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" "$URL"
-    test_curl "FAKE Bingbot Mobile" "block" -Lk -A "Mozilla/5.0 (iPhone; CPU iPhone OS 7_0 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11A465 Safari/9537.53 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" "$URL"
-    test_curl "FAKE MSNBot" "block" -Lk -A "msnbot/2.0b (+http://search.msn.com/msnbot.htm)" "$URL"
-    
-    # Fake outros bots famosos
-    test_curl "FAKE YandexBot" "block" -Lk -A "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)" "$URL"
-    test_curl "FAKE Baiduspider" "block" -Lk -A "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)" "$URL"
-}
+# As funções de testes de bots foram modularizadas em bots-tester.sh
+# Para testar: ./head-test.sh -c useragent|fakebots|aibots
 
 #==============================================================================
 # HOSTS INVÁLIDOS (10 testes)
@@ -5049,6 +5046,12 @@ case $CATEGORY in
     sqli|sqlinjection|sql) run_all_sqli_tests ;;
     cmdi|commandinjection|rce) run_all_cmdi_tests ;;
     lfi|rfi|fileinclusion) run_all_lfi_rfi_tests ;;
+    ssrf) run_all_ssrf_tests ;;
+    xxe) run_all_xxe_tests ;;
+    ssti) run_all_ssti_tests ;;
+    pathtraversal|dirtraversal|lfi) run_all_path_traversal_tests ;;
+    fileupload|upload) run_all_file_upload_tests ;;
+    csrf|xsrf) run_all_csrf_tests ;;
     useragent) test_bad_user_agents; test_good_bots; test_fake_bots ;;
     referer|referer-all) test_bad_referers ;;
     referer-spam|spam) test_referers_spam ;;
@@ -5065,6 +5068,8 @@ case $CATEGORY in
     range) test_range_header ;;
     smuggling) test_http_smuggling ;;
     fakebots) test_fake_bots ;;
+    aibots|aibot|ai-bots|ai) test_ai_bots ;;
+    bots|allbots) run_all_bots_tests ;;
     nginx) test_nginx_attacks ;;
     php) test_php_attacks ;;
     database|db) test_database_attacks ;;
@@ -5126,6 +5131,12 @@ case $CATEGORY in
         run_all_sqli_tests
         run_all_cmdi_tests
         run_all_lfi_rfi_tests
+        run_all_ssrf_tests
+        run_all_xxe_tests
+        run_all_ssti_tests
+        run_all_path_traversal_tests
+        run_all_file_upload_tests
+        run_all_csrf_tests
         test_invalid_host
         test_malicious_uri
         test_header_injection
@@ -5194,6 +5205,7 @@ case $CATEGORY in
          test_bad_referers
          test_good_bots
          test_fake_bots
+         test_ai_bots
          ;;
     *) echo "Categoria desconhecida: $CATEGORY"; exit 1 ;;
 esac
