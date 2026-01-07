@@ -22,6 +22,9 @@ Thumbs.db
 *.tmp
 *.temp
 
+# External dependencies (should be cloned separately)
+PayloadsAllTheThings/
+
 # Keep lists directory
 !lists/
 !lists/*.txt

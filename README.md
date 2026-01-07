@@ -1,11 +1,12 @@
 # 🛡️ HTTP Header Security Testing Suite
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.1.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-6.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/bash-5.0%2B-orange.svg" alt="Bash">
-  <img src="https://img.shields.io/badge/tests-1650%2B-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/categories-60%2B-purple.svg" alt="Categories">
+  <img src="https://img.shields.io/badge/tests-2700%2B-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/categories-65%2B-purple.svg" alt="Categories">
+  <img src="https://img.shields.io/badge/modules-4-red.svg" alt="Modules">
 </p>
 
 <p align="center">
@@ -60,15 +61,46 @@ O **HTTP Header Security Testing Suite** é uma ferramenta de linha de comando p
 - ✅ **🆕 Testar Open Redirect**
 - ✅ **🆕 Testar IDOR e Privilege Escalation**
 - ✅ **🆕 Testar Prototype Pollution**
+- ✅ **⚡ Módulos especializados para XSS, SQL Injection, Command Injection e File Inclusion (1050+ testes)**
+
+### 🧩 Arquitetura Modular (v6.0.0)
+
+A versão 6.0 introduz **4 módulos especializados** que expandem drasticamente a cobertura de testes:
+
+| Módulo | Testes | Arquivo | README |
+|--------|--------|---------|--------|
+| **🎨 XSS Tester** | 250+ | `xss-tester.sh` | [XSS-TESTER-README.md](XSS-TESTER-README.md) |
+| **💉 SQLi Tester** | 300+ | `sqli-tester.sh` | [SQLI-TESTER-README.md](SQLI-TESTER-README.md) |
+| **⚙️ CMDi Tester** | 250+ | `cmdi-tester.sh` | [CMDI-TESTER-README.md](CMDI-TESTER-README.md) |
+| **📁 LFI/RFI Tester** | 250+ | `lfi-rfi-tester.sh` | [LFI-RFI-TESTER-README.md](LFI-RFI-TESTER-README.md) |
+
+Cada módulo é:
+- ✅ **Independente**: Pode ser executado separadamente
+- ✅ **Documentado**: README completo com técnicas, exemplos e prevenção
+- ✅ **Baseado em PayloadsAllTheThings**: Usar payloads community-driven
+- ✅ **Organizado**: Categorias lógicas para testes focados
+- ✅ **Extensível**: Fácil adicionar novos payloads
+
+```bash
+# Executar módulo específico
+./head-test.sh -u https://example.com -c xss
+./head-test.sh -u https://example.com -c sqli
+./head-test.sh -u https://example.com -c cmdi
+./head-test.sh -u https://example.com -c lfi
+```
 
 ---
 
 ## ✨ Funcionalidades
 
-### 🎯 1400+ Testes de Segurança
+### 🎯 2700+ Testes de Segurança
 
 | Categoria | Quantidade | Descrição |
 |-----------|------------|-----------|
+| **⚡ XSS (Módulo)** | **250+** | **Cross-Site Scripting - 10 categorias especializadas** |
+| **⚡ SQLi (Módulo)** | **300+** | **SQL Injection - 10 categorias incluindo bypass de WAF** |
+| **⚡ CMDi (Módulo)** | **250+** | **Command Injection - RCE, bypass, reverse shell** |
+| **⚡ LFI/RFI (Módulo)** | **250+** | **File Inclusion - LFI, RFI, wrappers, LFI-to-RCE** |
 | Métodos HTTP | 30 | GET, POST, PUT, DELETE, WebDAV, métodos customizados |
 | Cookies Maliciosos | 40 | XSS, SQL Injection, overflow, encoding attacks |
 | Query String | 50 | SQL Injection, XSS, LFI, RFI, CMDi |
@@ -326,6 +358,10 @@ curl -IL --http3 -k https://cloudflare.com
 | **🆕 `prototype`** | `protopollution`, `__proto__` | Prototype Pollution |
 | **🆕 `evasion`** | `waf-evasion`, `bypass-waf` | WAF Evasion Techniques (150+ payloads) |
 | **🆕 `obfuscated`** | `obfuscation`, `encoded` | Obfuscated Payloads (140+ variants) |
+| **⚡ `xss`** | - | **[MÓDULO] XSS Tester - 250+ testes (10 categorias)** |
+| **⚡ `sqli`** | `sqlinjection`, `sql` | **[MÓDULO] SQLi Tester - 300+ testes (10 categorias)** |
+| **⚡ `cmdi`** | `commandinjection`, `rce` | **[MÓDULO] CMDi Tester - 250+ testes (8 categorias)** |
+| **⚡ `lfi`** | `rfi`, `fileinclusion` | **[MÓDULO] LFI/RFI Tester - 250+ testes (7 categorias)** |
 | `useragent` | - | User-Agent tests |
 | `referer` | `referer-all` | Todos os referers maliciosos |
 | `referer-spam` | `spam` | Apenas referers SPAM |
@@ -335,7 +371,136 @@ curl -IL --http3 -k https://cloudflare.com
 
 ---
 
-## 🆕 Novidades v5.0.0
+## � Novidades v6.0.0
+
+###🧩 Arquitetura Modular - 4 Módulos Especializados (1050+ testes)
+
+A versão 6.0 representa uma **revolução na arquitetura do projeto**, introduzindo 4 módulos especializados que transformam o `head-test.sh` em um **framework profissional de testes de segurança**.
+
+#### 🎨 XSS Tester (250+ testes)
+```bash
+./head-test.sh -u https://example.com -c xss
+```
+
+**10 categorias especializadas:**
+- XSS Básico (20 variações)
+- XSS HTML5 Tags (25 variações)
+- XSS Wrappers (15 variações)
+- XSS Polyglot (10 variações)
+- XSS WAF Bypass (30 variações)
+- XSS DOM-based (20 variações)
+- XSS File-based (SVG, XML, Markdown, CSS)
+- XSS Advanced (35 variações)
+- XSS Blind (20 variações)
+- Payloads avançados do PayloadsAllTheThings
+
+**Destaques:**
+- ✅ Baseado no repositório PayloadsAllTheThings
+- ✅ Cobertura completa de técnicas modernas
+- ✅ README dedicado com 100+ exemplos
+- ✅ Testes de bypass específicos para cada cenário
+
+#### 💉 SQLi Tester (300+ testes)
+```bash
+./head-test.sh -u https://example.com -c sqli
+```
+
+**10 categorias especializadas:**
+- SQLi Clássico (30 variações OR/AND)
+- SQLi UNION-Based (25 variações)
+- SQLi Error-Based (20 variações MySQL, MSSQL, PostgreSQL, Oracle)
+- SQLi Blind (25 variações Boolean + Time-based)
+- SQLi Authentication Bypass (30 variações)
+- SQLi Stacked Queries (15 variações)
+- SQLi WAF Bypass (40 técnicas de evasão)
+- SQLi Polyglot (10 payloads universais)
+- SQLi Database-Specific (20 testes por DBMS)
+- SQLi Advanced (50 payloads Generic_ErrorBased)
+
+**Destaques:**
+- ✅ Suporte a 6+ bancos de dados
+- ✅ 40 técnicas de bypass de WAF
+- ✅ Payloads do OWASP e PayloadsAllTheThings
+- ✅ Comparação detalhada com SQLmap
+
+#### ⚙️ CMDi Tester (250+ testes)
+```bash
+./head-test.sh -u https://example.com -c cmdi
+```
+
+**8 categorias especializadas:**
+- CMDi Básico (30 variações de command chaining)
+- CMDi Bypass (50 técnicas de evasão)
+- CMDi Time-Based (20 blind injection)
+- CMDi Data Exfiltration (15 DNS/HTTP/File)
+- CMDi Polyglot (10 multi-contexto)
+- CMDi Argument Injection (20 curl, wget, ssh, etc.)
+- CMDi Reverse Shell (15 bash, nc, python, perl, php)
+- CMDi Advanced (50 payloads command_exec.txt)
+
+**Destaques:**
+- ✅ 50 técnicas de bypass (encoding, quotes, wildcards)
+- ✅ 15 variantes de reverse shell
+- ✅ Argument injection em 20+ comandos
+- ✅ Comparação com Commix
+
+#### 📁 LFI/RFI Tester (250+ testes)
+```bash
+./head-test.sh -u https://example.com -c lfi
+```
+
+**7 categorias especializadas:**
+- LFI Básico (30 path traversal)
+- LFI Bypass (50 técnicas null byte, encoding, filtros)
+- LFI PHP Wrappers (25 php://filter, data://, expect://)
+- RFI (20 HTTP, FTP, SMB, data wrapper)
+- LFI to RCE (15 log poisoning, session, /proc)
+- Path Traversal Deep (20 variações profundas)
+- LFI Advanced (50 payloads Linux/Windows/Web)
+
+**Destaques:**
+- ✅ 25 PHP wrappers testados
+- ✅ Log poisoning para 6 serviços
+- ✅ Suporte Linux, Windows, BSD, macOS
+- ✅ Comparação com Kadimus e LFISuite
+
+### 📚 Documentação Completa
+
+Cada módulo possui README dedicado:
+- [XSS-TESTER-README.md](XSS-TESTER-README.md) - Guia completo de XSS
+- [SQLI-TESTER-README.md](SQLI-TESTER-README.md) - Guia completo de SQLi
+- [CMDI-TESTER-README.md](CMDI-TESTER-README.md) - Guia completo de CMDi
+- [LFI-RFI-TESTER-README.md](LFI-RFI-TESTER-README.md) - Guia completo de LFI/RFI
+
+Cada README inclui:
+- ✅ Explicação de todas as técnicas
+- ✅ Exemplos de código vulnerável vs exploits
+- ✅ Guia de prevenção e remediação
+- ✅ Comparação com ferramentas profissionais
+- ✅ Casos de uso em CI/CD
+- ✅ Referências e documentação oficial
+
+### 🔧 Melhorias de Arquitetura
+
+- ✅ **PayloadsAllTheThings integrado**: Requer git clone do repositório
+- ✅ **Modularização completa**: Fácil manutenção e extensão
+- ✅ **Escalabilidade**: Adicionar novos módulos é plug-and-play
+- ✅ **Reusabilidade**: Módulos podem ser usados em outros projetos
+- ✅ **Versionamento**: Cada módulo tem sua própria documentação
+
+### 📊 Estatísticas v6.0.0
+
+| Métrica | v5.1.0 | v6.0.0 | Incremento |
+|---------|--------|--------|------------|
+| **Total de Testes** | 1650+ | 2700+ | +63% |
+| **Arquivos de Script** | 1 | 5 | +4 módulos |
+| **Documentação** | 1 README | 5 READMEs | +100 páginas |
+| **Categorias** | 60+ | 65+ | +5 |
+| **Payloads externos** | 0 | PayloadsAllTheThings | Community-driven |
+
+---
+
+## �🆕 Novidades v5.0.0
 
 ### 🔓 403 Bypass Tests (100+ testes)
 
@@ -654,22 +819,92 @@ table inet filter {
 
 ```
 hardening-test/
-├── head-test.sh           # Script principal (1650+ testes)
-├── Dockerfile             # Docker com suporte a HTTP/3
-├── docker-run.sh          # Script auxiliar Docker
-├── .dockerignore          # Exclusões para o build
-├── README.md              # Esta documentação
-├── LICENSE                # Licença MIT
-└── lists/                 # Listas de payloads
-    ├── bad-user-agents.txt
-    ├── referers-spam.txt
-    ├── referers-seo-blackhat.txt
-    └── referers-injection.txt
+├── head-test.sh                    # Script principal (2700+ testes)
+├── xss-tester.sh                   # 🎨 Módulo XSS (250+ testes)
+├── sqli-tester.sh                  # 💉 Módulo SQLi (300+ testes)
+├── cmdi-tester.sh                  # ⚙️ Módulo CMDi (250+ testes)
+├── lfi-rfi-tester.sh               # 📁 Módulo LFI/RFI (250+ testes)
+├── Dockerfile                      # Docker com suporte a HTTP/3
+├── docker-run.sh                   # Script auxiliar Docker
+├── .dockerignore                   # Exclusões para o build
+├── .gitignore                      # Exclusões para o git
+├── README.md                       # Esta documentação
+├── XSS-TESTER-README.md            # 📖 Documentação do módulo XSS
+├── SQLI-TESTER-README.md           # 📖 Documentação do módulo SQLi
+├── CMDI-TESTER-README.md           # 📖 Documentação do módulo CMDi
+├── LFI-RFI-TESTER-README.md        # 📖 Documentação do módulo LFI/RFI
+├── LICENSE                         # Licença MIT
+├── lists/                          # Listas de payloads
+│   ├── bad-user-agents.txt
+│   ├── referers-spam.txt
+│   ├── referers-seo-blackhat.txt
+│   └── referers-injection.txt
+└── PayloadsAllTheThings/           # Repositório externo (git clone)
+    ├── XSS Injection/
+    ├── SQL Injection/
+    ├── Command Injection/
+    └── File Inclusion/
+```
+
+### 🔧 Instalação Completa
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/seu-usuario/hardening-test.git
+cd hardening-test
+
+# 2. Clone os payloads externos
+git clone https://github.com/swisskyrepo/PayloadsAllTheThings.git
+
+# 3. Dar permissões de execução
+chmod +x *.sh
+
+# 4. Executar testes
+./head-test.sh -u https://example.com
 ```
 
 ---
 
 ## 📝 Changelog
+
+### v6.0.0 (2026-01-07)
+- 🎉 **ARQUITETURA MODULAR** - Introdução de 4 módulos especializados
+- 🎨 **XSS Tester** (250+ testes)
+  - 10 categorias: Básico, HTML5, Wrappers, Polyglot, WAF Bypass, DOM, File-based, Advanced, Blind
+  - Baseado em PayloadsAllTheThings/XSS Injection
+  - README dedicado com técnicas, exemplos e prevenção
+  - Categorias: `-c xss`
+- 💉 **SQLi Tester** (300+ testes)
+  - 10 categorias: Classic, UNION, Error-based, Blind, Auth Bypass, Stacked, WAF Bypass, Polyglot, DB-Specific, Advanced
+  - Suporte a 6+ bancos de dados (MySQL, MSSQL, PostgreSQL, Oracle, SQLite, MongoDB)
+  - 40 técnicas de bypass de WAF
+  - Categorias: `-c sqli`, `-c sql`, `-c sqlinjection`
+- ⚙️ **CMDi Tester** (250+ testes)
+  - 8 categorias: Basic, Bypass, Time-based, Data Exfil, Polyglot, Argument Injection, Reverse Shell, Advanced
+  - 50 técnicas de bypass de filtros
+  - 15 variantes de reverse shell
+  - Categorias: `-c cmdi`, `-c rce`, `-c commandinjection`
+- 📁 **LFI/RFI Tester** (250+ testes)
+  - 7 categorias: Basic LFI, Bypass, PHP Wrappers, RFI, LFI-to-RCE, Path Traversal, Advanced
+  - 25 PHP wrappers (php://filter, data://, expect://, zip://, etc.)
+  - Log poisoning para 6 serviços
+  - Categorias: `-c lfi`, `-c rfi`, `-c fileinclusion`
+- 📚 **Documentação Completa**
+  - 4 READMEs especializados (XSS, SQLi, CMDi, LFI/RFI)
+  - Mais de 100 páginas de documentação
+  - Comparações comferramentas profissionais (SQLmap, Commix, Kadimus, LFISuite)
+  - Guias de prevenção e remediação
+  - Casos de uso em CI/CD
+- 🔧 **PayloadsAllTheThings Integration**
+  - Repositório externo integrado via git clone
+  - Acesso a 1000+ payloads community-driven
+  - Atualização fácil via git pull
+- 📊 **Estatísticas**
+  - **2700+ testes** totais (+63% vs v5.1.0)
+  - **5 arquivos de script** (1 principal + 4 módulos)
+  - **5 READMEs** (+100 páginas documentação)
+  - **65+ categorias** de testes
+  - **4 módulos** independentes e reutilizáveis
 
 ### v5.1.0 (2024-12-29)
 - 🆕 **Obfuscated Payloads** (140+ testes)

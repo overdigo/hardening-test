@@ -32,6 +32,26 @@ WITH_PORTS=false  # Testes de portas são lentos, só executar com flag explíci
 SPEED=4  # Velocidade de teste (1-5): 1=muito lento, 4=rápido (padrão), 5=paralelo
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Importar módulo XSS Tester
+if [ -f "${SCRIPT_DIR}/xss-tester.sh" ]; then
+    source "${SCRIPT_DIR}/xss-tester.sh"
+fi
+
+# Importar módulo SQLi Tester
+if [ -f "${SCRIPT_DIR}/sqli-tester.sh" ]; then
+    source "${SCRIPT_DIR}/sqli-tester.sh"
+fi
+
+# Importar módulo CMDi Tester
+if [ -f "${SCRIPT_DIR}/cmdi-tester.sh" ]; then
+    source "${SCRIPT_DIR}/cmdi-tester.sh"
+fi
+
+# Importar módulo LFI/RFI Tester
+if [ -f "${SCRIPT_DIR}/lfi-rfi-tester.sh" ]; then
+    source "${SCRIPT_DIR}/lfi-rfi-tester.sh"
+fi
+
 # Paralelização para velocidade 5
 PARALLEL_JOBS=0
 MAX_PARALLEL=2  # Número de requests paralelos na velocidade 5
@@ -5025,6 +5045,10 @@ case $CATEGORY in
     method) test_all_http_methods ;;
     cookie) test_malicious_cookies ;;
     query) test_malicious_query ;;
+    xss) run_all_xss_tests ;;
+    sqli|sqlinjection|sql) run_all_sqli_tests ;;
+    cmdi|commandinjection|rce) run_all_cmdi_tests ;;
+    lfi|rfi|fileinclusion) run_all_lfi_rfi_tests ;;
     useragent) test_bad_user_agents; test_good_bots; test_fake_bots ;;
     referer|referer-all) test_bad_referers ;;
     referer-spam|spam) test_referers_spam ;;
@@ -5098,6 +5122,10 @@ case $CATEGORY in
         test_all_http_methods
         test_malicious_cookies
         test_malicious_query
+        run_all_xss_tests
+        run_all_sqli_tests
+        run_all_cmdi_tests
+        run_all_lfi_rfi_tests
         test_invalid_host
         test_malicious_uri
         test_header_injection
