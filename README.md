@@ -71,16 +71,16 @@ A versão 6.1 conta com **10 módulos especializados** que expandem drasticament
 
 | Módulo | Testes | Arquivo | README |
 |--------|--------|---------|--------|
-| **🎨 XSS Tester** | 250+ | `xss-tester.sh` | [XSS-TESTER-README.md](XSS-TESTER-README.md) |
-| **💉 SQLi Tester** | 300+ | `sqli-tester.sh` | [SQLI-TESTER-README.md](SQLI-TESTER-README.md) |
-| **⚙️ CMDi Tester** | 250+ | `cmdi-tester.sh` | [CMDI-TESTER-README.md](CMDI-TESTER-README.md) |
-| **📁 LFI/RFI Tester** | 250+ | `lfi-rfi-tester.sh` | [LFI-RFI-TESTER-README.md](LFI-RFI-TESTER-README.md) |
-| **🔒 CSRF Tester** | 90+ | `csrf-tester.sh` | [CSRF-TESTER-README.md](CSRF-TESTER-README.md) |
-| **📤 File Upload Tester** | 150+ | `file-upload-tester.sh` | [FILE-UPLOAD-TESTER-README.md](FILE-UPLOAD-TESTER-README.md) |
-| **📂 Path Traversal Tester** | 140+ | `path-traversal-tester.sh` | [PATH-TRAVERSAL-TESTER-README.md](PATH-TRAVERSAL-TESTER-README.md) |
-| **🌐 SSRF Tester** | 200+ | `ssrf-tester.sh` | [SSRF-TESTER-README.md](SSRF-TESTER-README.md) |
-| **🎭 SSTI Tester** | 170+ | `ssti-tester.sh` | [SSTI-TESTER-README.md](SSTI-TESTER-README.md) |
-| **📝 XXE Tester** | 150+ | `xxe-tester.sh` | [XXE-TESTER-README.md](XXE-TESTER-README.md) |
+| **🎨 XSS Tester** | 250+ | `modulos/xss-tester.sh` | [modulos/XSS-TESTER-README.md](modulos/XSS-TESTER-README.md) |
+| **💉 SQLi Tester** | 300+ | `modulos/sqli-tester.sh` | [modulos/SQLI-TESTER-README.md](modulos/SQLI-TESTER-README.md) |
+| **⚙️ CMDi Tester** | 250+ | `modulos/cmdi-tester.sh` | [modulos/CMDI-TESTER-README.md](modulos/CMDI-TESTER-README.md) |
+| **📁 LFI/RFI Tester** | 250+ | `modulos/lfi-rfi-tester.sh` | [modulos/LFI-RFI-TESTER-README.md](modulos/LFI-RFI-TESTER-README.md) |
+| **🔒 CSRF Tester** | 90+ | `modulos/csrf-tester.sh` | [modulos/CSRF-TESTER-README.md](modulos/CSRF-TESTER-README.md) |
+| **📤 File Upload Tester** | 150+ | `modulos/file-upload-tester.sh` | [modulos/FILE-UPLOAD-TESTER-README.md](modulos/FILE-UPLOAD-TESTER-README.md) |
+| **📂 Path Traversal Tester** | 140+ | `modulos/path-traversal-tester.sh` | [modulos/PATH-TRAVERSAL-TESTER-README.md](modulos/PATH-TRAVERSAL-TESTER-README.md) |
+| **🌐 SSRF Tester** | 200+ | `modulos/ssrf-tester.sh` | [modulos/SSRF-TESTER-README.md](modulos/SSRF-TESTER-README.md) |
+| **🎭 SSTI Tester** | 170+ | `modulos/ssti-tester.sh` | [modulos/SSTI-TESTER-README.md](modulos/SSTI-TESTER-README.md) |
+| **📝 XXE Tester** | 150+ | `modulos/xxe-tester.sh` | [modulos/XXE-TESTER-README.md](modulos/XXE-TESTER-README.md) |
 
 Cada módulo é:
 - ✅ **Independente**: Pode ser executado separadamente
@@ -450,12 +450,12 @@ A versão 6.1.0 representa uma **evolução completa** do projeto, expandindo de
 ### 📚 Documentação Completa
 
 **6 novos READMEs adicionados:**
-- [CSRF-TESTER-README.md](CSRF-TESTER-README.md) - CSRF Protection (90 testes)
-- [FILE-UPLOAD-TESTER-README.md](FILE-UPLOAD-TESTER-README.md) - Insecure File Upload (150 testes)
-- [PATH-TRAVERSAL-TESTER-README.md](PATH-TRAVERSAL-TESTER-README.md) - Directory Traversal (140 testes)
-- [SSRF-TESTER-README.md](SSRF-TESTER-README.md) - SSRF & Cloud Security (200 testes)
-- [SSTI-TESTER-README.md](SSTI-TESTER-README.md) - Template Injection (170 testes)
-- [XXE-TESTER-README.md](XXE-TESTER-README.md) - XML External Entity (150 testes)
+- [modulos/CSRF-TESTER-README.md](modulos/CSRF-TESTER-README.md) - CSRF Protection (90 testes)
+- [modulos/FILE-UPLOAD-TESTER-README.md](modulos/FILE-UPLOAD-TESTER-README.md) - Insecure File Upload (150 testes)
+- [modulos/PATH-TRAVERSAL-TESTER-README.md](modulos/PATH-TRAVERSAL-TESTER-README.md) - Directory Traversal (140 testes)
+- [modulos/SSRF-TESTER-README.md](modulos/SSRF-TESTER-README.md) - SSRF & Cloud Security (200 testes)
+- [modulos/SSTI-TESTER-README.md](modulos/SSTI-TESTER-README.md) - Template Injection (170 testes)
+- [modulos/XXE-TESTER-README.md](modulos/XXE-TESTER-README.md) - XML External Entity (150 testes)
 
 ### 📊 Estatísticas v6.1.0
 
@@ -565,16 +565,16 @@ A versão 6.0 representa uma **revolução na arquitetura do projeto**, introduz
 ### 📚 Documentação Completa
 
 Cada módulo possui README dedicado:
-- [XSS-TESTER-README.md](XSS-TESTER-README.md) - Cross-Site Scripting (250+ testes)
-- [SQLI-TESTER-README.md](SQLI-TESTER-README.md) - SQL Injection (300+ testes)
-- [CMDI-TESTER-README.md](CMDI-TESTER-README.md) - Command Injection (250+ testes)
-- [LFI-RFI-TESTER-README.md](LFI-RFI-TESTER-README.md) - File Inclusion (250+ testes)
-- [CSRF-TESTER-README.md](CSRF-TESTER-README.md) - CSRF Protection (90+ testes)
-- [FILE-UPLOAD-TESTER-README.md](FILE-UPLOAD-TESTER-README.md) - Insecure File Upload (150+ testes)
-- [PATH-TRAVERSAL-TESTER-README.md](PATH-TRAVERSAL-TESTER-README.md) - Directory Traversal (140+ testes)
-- [SSRF-TESTER-README.md](SSRF-TESTER-README.md) - SSRF & Cloud Security (200+ testes)
-- [SSTI-TESTER-README.md](SSTI-TESTER-README.md) - Template Injection (170+ testes)
-- [XXE-TESTER-README.md](XXE-TESTER-README.md) - XML External Entity (150+ testes)
+- [modulos/XSS-TESTER-README.md](modulos/XSS-TESTER-README.md) - Cross-Site Scripting (250+ testes)
+- [modulos/SQLI-TESTER-README.md](modulos/SQLI-TESTER-README.md) - SQL Injection (300+ testes)
+- [modulos/CMDI-TESTER-README.md](modulos/CMDI-TESTER-README.md) - Command Injection (250+ testes)
+- [modulos/LFI-RFI-TESTER-README.md](modulos/LFI-RFI-TESTER-README.md) - File Inclusion (250+ testes)
+- [modulos/CSRF-TESTER-README.md](modulos/CSRF-TESTER-README.md) - CSRF Protection (90+ testes)
+- [modulos/FILE-UPLOAD-TESTER-README.md](modulos/FILE-UPLOAD-TESTER-README.md) - Insecure File Upload (150+ testes)
+- [modulos/PATH-TRAVERSAL-TESTER-README.md](modulos/PATH-TRAVERSAL-TESTER-README.md) - Directory Traversal (140+ testes)
+- [modulos/SSRF-TESTER-README.md](modulos/SSRF-TESTER-README.md) - SSRF & Cloud Security (200+ testes)
+- [modulos/SSTI-TESTER-README.md](modulos/SSTI-TESTER-README.md) - Template Injection (170+ testes)
+- [modulos/XXE-TESTER-README.md](modulos/XXE-TESTER-README.md) - XML External Entity (150+ testes)
 
 Cada README inclui:
 - ✅ Explicação de todas as técnicas
@@ -923,31 +923,50 @@ table inet filter {
 
 ```
 hardening-test/
-├── head-test.sh                    # Script principal (2700+ testes)
-├── xss-tester.sh                   # 🎨 Módulo XSS (250+ testes)
-├── sqli-tester.sh                  # 💉 Módulo SQLi (300+ testes)
-├── cmdi-tester.sh                  # ⚙️ Módulo CMDi (250+ testes)
-├── lfi-rfi-tester.sh               # 📁 Módulo LFI/RFI (250+ testes)
+├── head-test.sh                    # Script principal (3500+ testes)
 ├── Dockerfile                      # Docker com suporte a HTTP/3
 ├── docker-run.sh                   # Script auxiliar Docker
 ├── .dockerignore                   # Exclusões para o build
 ├── .gitignore                      # Exclusões para o git
 ├── README.md                       # Esta documentação
-├── XSS-TESTER-README.md            # 📖 Documentação do módulo XSS
-├── SQLI-TESTER-README.md           # 📖 Documentação do módulo SQLi
-├── CMDI-TESTER-README.md           # 📖 Documentação do módulo CMDi
-├── LFI-RFI-TESTER-README.md        # 📖 Documentação do módulo LFI/RFI
 ├── LICENSE                         # Licença MIT
+├── modulos/                        # 📦 Módulos especializados
+│   ├── xss-tester.sh               # 🎨 Módulo XSS (250+ testes)
+│   ├── sqli-tester.sh              # 💉 Módulo SQLi (300+ testes)
+│   ├── cmdi-tester.sh              # ⚙️ Módulo CMDi (250+ testes)
+│   ├── lfi-rfi-tester.sh           # 📁 Módulo LFI/RFI (250+ testes)
+│   ├── csrf-tester.sh              # 🔒 Módulo CSRF (90+ testes)
+│   ├── file-upload-tester.sh       # 📤 Módulo File Upload (150+ testes)
+│   ├── path-traversal-tester.sh    # 📂 Módulo Path Traversal (140+ testes)
+│   ├── ssrf-tester.sh              # 🌐 Módulo SSRF (200+ testes)
+│   ├── ssti-tester.sh              # 🎭 Módulo SSTI (170+ testes)
+│   ├── xxe-tester.sh               # 📝 Módulo XXE (150+ testes)
+│   ├── bots-tester.sh              # 🤖 Módulo Bots (100+ testes)
+│   ├── XSS-TESTER-README.md        # 📖 Documentação XSS
+│   ├── SQLI-TESTER-README.md       # 📖 Documentação SQLi
+│   ├── CMDI-TESTER-README.md       # 📖 Documentação CMDi
+│   ├── LFI-RFI-TESTER-README.md    # 📖 Documentação LFI/RFI
+│   ├── CSRF-TESTER-README.md       # 📖 Documentação CSRF
+│   ├── FILE-UPLOAD-TESTER-README.md # 📖 Documentação File Upload
+│   ├── PATH-TRAVERSAL-TESTER-README.md # 📖 Documentação Path Traversal
+│   ├── SSRF-TESTER-README.md       # 📖 Documentação SSRF
+│   ├── SSTI-TESTER-README.md       # 📖 Documentação SSTI
+│   ├── XXE-TESTER-README.md        # 📖 Documentação XXE
+│   └── BOTS-EXPANSION-README.md    # 📖 Documentação Bots
 ├── lists/                          # Listas de payloads
 │   ├── bad-user-agents.txt
 │   ├── referers-spam.txt
 │   ├── referers-seo-blackhat.txt
-│   └── referers-injection.txt
+│   ├── referers-injection.txt
+│   ├── referers-adult.txt
+│   └── referers-gambling.txt
 └── PayloadsAllTheThings/           # Repositório externo (git clone)
     ├── XSS Injection/
     ├── SQL Injection/
     ├── Command Injection/
-    └── File Inclusion/
+    ├── File Inclusion/
+    ├── Upload Insecure Files/
+    └── ... (outros payloads)
 ```
 
 ### 🔧 Instalação Completa
@@ -961,7 +980,8 @@ cd hardening-test
 git clone https://github.com/swisskyrepo/PayloadsAllTheThings.git
 
 # 3. Dar permissões de execução
-chmod +x *.sh
+chmod +x head-test.sh docker-run.sh
+chmod +x modulos/*.sh
 
 # 4. Executar testes
 ./head-test.sh -u https://example.com
