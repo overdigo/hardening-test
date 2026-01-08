@@ -33,58 +33,58 @@ SPEED=4  # Velocidade de teste (1-5): 1=muito lento, 4=rápido (padrão), 5=para
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Importar módulo XSS Tester
-if [ -f "${SCRIPT_DIR}/xss-tester.sh" ]; then
-    source "${SCRIPT_DIR}/xss-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/xss-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/xss-tester.sh"
 fi
 
 # Importar módulo SQLi Tester
-if [ -f "${SCRIPT_DIR}/sqli-tester.sh" ]; then
-    source "${SCRIPT_DIR}/sqli-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/sqli-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/sqli-tester.sh"
 fi
 
 # Importar módulo CMDi Tester
-if [ -f "${SCRIPT_DIR}/cmdi-tester.sh" ]; then
-    source "${SCRIPT_DIR}/cmdi-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/cmdi-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/cmdi-tester.sh"
 fi
 
 # Importar módulo LFI/RFI Tester
-if [ -f "${SCRIPT_DIR}/lfi-rfi-tester.sh" ]; then
-    source "${SCRIPT_DIR}/lfi-rfi-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/lfi-rfi-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/lfi-rfi-tester.sh"
 fi
 
 # Importar módulo SSRF Tester
-if [ -f "${SCRIPT_DIR}/ssrf-tester.sh" ]; then
-    source "${SCRIPT_DIR}/ssrf-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/ssrf-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/ssrf-tester.sh"
 fi
 
 # Importar módulo XXE Tester
-if [ -f "${SCRIPT_DIR}/xxe-tester.sh" ]; then
-    source "${SCRIPT_DIR}/xxe-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/xxe-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/xxe-tester.sh"
 fi
 
 # Importar módulo SSTI Tester
-if [ -f "${SCRIPT_DIR}/ssti-tester.sh" ]; then
-    source "${SCRIPT_DIR}/ssti-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/ssti-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/ssti-tester.sh"
 fi
 
 # Importar módulo Path Traversal Tester
-if [ -f "${SCRIPT_DIR}/path-traversal-tester.sh" ]; then
-    source "${SCRIPT_DIR}/path-traversal-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/path-traversal-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/path-traversal-tester.sh"
 fi
 
 # Importar módulo File Upload Tester
-if [ -f "${SCRIPT_DIR}/file-upload-tester.sh" ]; then
-    source "${SCRIPT_DIR}/file-upload-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/file-upload-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/file-upload-tester.sh"
 fi
 
 # Importar módulo CSRF Tester
-if [ -f "${SCRIPT_DIR}/csrf-tester.sh" ]; then
-    source "${SCRIPT_DIR}/csrf-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/csrf-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/csrf-tester.sh"
 fi
 
 # Importar módulo Bots Tester
-if [ -f "${SCRIPT_DIR}/bots-tester.sh" ]; then
-    source "${SCRIPT_DIR}/bots-tester.sh"
+if [ -f "${SCRIPT_DIR}/modulos/bots-tester.sh" ]; then
+    source "${SCRIPT_DIR}/modulos/bots-tester.sh"
 fi
 
 # Paralelização para velocidade 5
